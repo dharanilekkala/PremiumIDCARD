@@ -11,6 +11,10 @@
 export type UserRole   = "SuperAdmin" | "Admin" | "Operator" | "Viewer";
 export type UserStatus = "active" | "inactive" | "suspended" | "locked";
 
+export type OrgCategory =
+  | "school" | "college" | "university" | "coaching"
+  | "corporate" | "hospital" | "event" | "custom";
+
 export interface User {
   id:             string;
   name:           string;
@@ -28,8 +32,14 @@ export interface User {
 export interface Organization {
   id:               string;
   name:             string;
+  orgType:          OrgCategory;
   subscriptionPlan: "free" | "pro" | "enterprise";
   status:           "active" | "suspended";
+  adminEmail:       string;
+  adminName:        string;
+  phone?:           string;
+  address?:         string;
+  createdAt:        string;
 }
 
 export interface AuthSession {
@@ -73,6 +83,9 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   "/dashboard/users":          ["SuperAdmin", "Admin"],
   "/dashboard/settings":       ["SuperAdmin"],
   "/dashboard/security":       ["SuperAdmin", "Admin"],
+  "/dashboard/audit-logs":     ["SuperAdmin", "Admin"],
+  "/dashboard/organizations":  ["SuperAdmin"],
+  "/dashboard/admin":          ["SuperAdmin"],
 };
 
 export function hasPermission(role: UserRole, perm: string): boolean {
@@ -88,7 +101,6 @@ export function canAccessRoute(role: UserRole, path: string): boolean {
 // ── Password (simulated hash — in prod: bcrypt on server) ─────────────────────
 
 function doHash(plain: string): string {
-  // btoa is available browser + Node16+ + Edge runtime
   return btoa(encodeURIComponent(`idforge::${plain}::v3`));
 }
 export function hashPw(plain: string): string { return doHash(plain); }
@@ -101,8 +113,18 @@ export function verifyPw(plain: string, hashed: string): boolean {
 export const SEED_ORG_ID = "org1";
 
 const SEED_ORGS: Organization[] = [
-  { id: "org1", name: "IDForge Demo Corp",  subscriptionPlan: "enterprise", status: "active" },
-  { id: "org2", name: "Acme School Board",  subscriptionPlan: "pro",        status: "active" },
+  {
+    id: "org1", name: "IDForge Demo Corp", orgType: "corporate",
+    subscriptionPlan: "enterprise", status: "active",
+    adminEmail: "superadmin@idforge.ai", adminName: "Super Admin",
+    phone: "+91 98765 00001", createdAt: "2024-01-01T00:00:00Z",
+  },
+  {
+    id: "org2", name: "Acme School Board", orgType: "school",
+    subscriptionPlan: "pro", status: "active",
+    adminEmail: "sunita@acmeschool.edu", adminName: "Sunita Sharma",
+    phone: "+91 98765 00002", createdAt: "2024-04-10T00:00:00Z",
+  },
 ];
 
 function makeSeedUsers(): User[] {
@@ -144,12 +166,57 @@ export function getOrganizations(): Organization[] {
   try {
     const raw = localStorage.getItem(LS_ORGS);
     if (!raw) { localStorage.setItem(LS_ORGS, JSON.stringify(SEED_ORGS)); return SEED_ORGS; }
-    return JSON.parse(raw);
+    const orgs = JSON.parse(raw) as Organization[];
+    // Migrate old records missing new fields
+    return orgs.map(o => ({
+      orgType: "custom" as OrgCategory,
+      adminEmail: "", adminName: "", createdAt: "2024-01-01T00:00:00Z",
+      ...o,
+    }));
   } catch { return SEED_ORGS; }
+}
+
+function saveOrganizations(orgs: Organization[]): void {
+  localStorage.setItem(LS_ORGS, JSON.stringify(orgs));
 }
 
 export function getOrgById(id: string): Organization | undefined {
   return getOrganizations().find(o => o.id === id);
+}
+
+export function createOrganization(data: {
+  name: string; orgType: OrgCategory; adminEmail: string; adminName: string;
+  phone?: string; address?: string;
+}): { ok: boolean; org?: Organization; error?: string } {
+  if (typeof window === "undefined") return { ok: false, error: "Server context" };
+  const orgs = getOrganizations();
+  const org: Organization = {
+    id: `org${Date.now()}`,
+    name: data.name, orgType: data.orgType,
+    subscriptionPlan: "free", status: "active",
+    adminEmail: data.adminEmail, adminName: data.adminName,
+    phone: data.phone, address: data.address,
+    createdAt: new Date().toISOString(),
+  };
+  saveOrganizations([...orgs, org]);
+  return { ok: true, org };
+}
+
+export function updateOrganization(id: string, patch: Partial<Omit<Organization, "id" | "createdAt">>): boolean {
+  const orgs = getOrganizations();
+  const idx  = orgs.findIndex(o => o.id === id);
+  if (idx < 0) return false;
+  orgs[idx] = { ...orgs[idx], ...patch };
+  saveOrganizations(orgs);
+  return true;
+}
+
+export function deleteOrganization(id: string): boolean {
+  const orgs = getOrganizations();
+  const next = orgs.filter(o => o.id !== id);
+  if (next.length === orgs.length) return false;
+  saveOrganizations(next);
+  return true;
 }
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
@@ -239,7 +306,6 @@ export function getSession(): AuthSession | null {
 }
 
 export function refreshSession(): void {
-  // Re-sync cookie from localStorage (e.g., after page reload)
   if (typeof window === "undefined") return;
   const token = localStorage.getItem(LS_TOKEN);
   if (token) {
@@ -248,6 +314,54 @@ export function refreshSession(): void {
       setCookie(token, false);
     }
   }
+}
+
+// ── Organization registration (signup flow) ───────────────────────────────────
+
+export function registerOrganization(data: {
+  orgName:       string;
+  orgType:       OrgCategory;
+  adminName:     string;
+  adminEmail:    string;
+  adminPassword: string;
+  phone?:        string;
+}): { ok: boolean; session?: AuthSession; error?: string } {
+  const users = getUsers();
+  if (users.some(u => u.email.toLowerCase() === data.adminEmail.toLowerCase())) {
+    return { ok: false, error: "An account with this email already exists." };
+  }
+
+  const orgResult = createOrganization({
+    name: data.orgName, orgType: data.orgType,
+    adminEmail: data.adminEmail, adminName: data.adminName,
+    phone: data.phone,
+  });
+  if (!orgResult.ok || !orgResult.org) {
+    return { ok: false, error: orgResult.error ?? "Failed to create organization." };
+  }
+
+  const org    = orgResult.org;
+  const userId = `u${Date.now()}`;
+  const user: User = {
+    id: userId, name: data.adminName, email: data.adminEmail,
+    passwordHash: hashPw(data.adminPassword), role: "Admin",
+    organizationId: org.id, status: "active",
+    lastLogin: null, createdAt: new Date().toISOString(),
+    failedAttempts: 0, lockedUntil: null,
+  };
+  saveUsers([...users, user]);
+
+  const ttl = 86400;
+  const session: AuthSession = {
+    userId, email: data.adminEmail, name: data.adminName,
+    role: "Admin", organizationId: org.id,
+    exp: Math.floor(Date.now() / 1000) + ttl,
+    iat: Math.floor(Date.now() / 1000),
+  };
+  const token = encodeSession(session);
+  localStorage.setItem(LS_TOKEN, token);
+  setCookie(token, false);
+  return { ok: true, session };
 }
 
 // ── User management ───────────────────────────────────────────────────────────
@@ -323,3 +437,14 @@ export const ALL_ROLES: UserRole[] = ["SuperAdmin", "Admin", "Operator", "Viewer
 export function getUserInitials(name: string): string {
   return name.split(" ").map(p => p[0]).filter(Boolean).join("").slice(0, 2).toUpperCase();
 }
+
+export const ORG_CATEGORY_META: Record<OrgCategory, { label: string; icon: string; color: string }> = {
+  school:     { label: "School",      icon: "🏫", color: "text-brand-400"   },
+  college:    { label: "College",     icon: "🎓", color: "text-emerald-400" },
+  university: { label: "University",  icon: "🏛️", color: "text-amber-400"   },
+  coaching:   { label: "Coaching",    icon: "📚", color: "text-cyan-400"    },
+  corporate:  { label: "Corporate",   icon: "🏢", color: "text-violet-400"  },
+  hospital:   { label: "Hospital",    icon: "🏥", color: "text-red-400"     },
+  event:      { label: "Events",      icon: "🎪", color: "text-pink-400"    },
+  custom:     { label: "Custom",      icon: "⚙️",  color: "text-white/50"   },
+};

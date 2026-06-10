@@ -4,12 +4,21 @@ import Link from "next/link";
 import {
   Sparkles, TrendingUp, Users, CreditCard, QrCode,
   ArrowUpRight, ArrowRight, CheckCircle, Clock, XCircle, Eye,
-  Bot, PenTool, BarChart3, Settings
+  Bot, PenTool, BarChart3, Settings, Crown, Zap, Building2,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar
 } from "recharts";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import { PLANS, formatPrice, type PlanId } from "@/lib/subscription";
+
+const PLAN_ICONS: Record<PlanId, React.ElementType> = {
+  starter:      Zap,
+  professional: Sparkles,
+  business:     Building2,
+  enterprise:   Crown,
+};
 
 const statsCards = [
   {
@@ -96,6 +105,17 @@ const CustomTooltip = ({ active, payload, label }: ChartTooltipProps) => {
 };
 
 export default function DashboardOverview() {
+  const { planId, usage, subscription } = useSubscription();
+  const plan    = PLANS[planId];
+  const Icon    = PLAN_ICONS[planId];
+  const cards   = usage?.cardsGenerated ?? 0;
+  const limit   = plan.features.cards_per_month;
+  const pct     = limit === -1 ? 0 : Math.min(100, Math.round((cards / limit) * 100));
+  const isTrialing = subscription?.status === "trialing";
+  const trialDays  = subscription?.trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(subscription.trialEndsAt).getTime() - Date.now()) / 86400_000))
+    : null;
+
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
@@ -112,14 +132,30 @@ export default function DashboardOverview() {
         <div className="absolute right-0 top-0 w-64 h-64 bg-brand-500/20 rounded-full blur-[80px]" />
         <div className="relative z-10 flex items-start justify-between flex-wrap gap-4">
           <div>
-            <p className="text-white/50 text-sm mb-1">Good morning, Rahul 👋</p>
+            <p className="text-white/50 text-sm mb-1">Good morning 👋</p>
             <h2 className="text-2xl font-bold text-white mb-2">Welcome Back to IDForge AI</h2>
             <p className="text-white/40 text-sm">
-              You&apos;ve generated <span className="text-brand-300 font-semibold">0 cards</span> this month.
-              {" "}Your monthly limit is <span className="text-white/60">2,000 cards</span>.
+              You&apos;ve generated <span className="text-brand-300 font-semibold">{cards.toLocaleString()} cards</span> this month.
+              {" "}Your monthly limit is{" "}
+              <span className="text-white/60">{limit === -1 ? "Unlimited" : limit.toLocaleString()}</span>.
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/dashboard/subscription">
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${
+                isTrialing ? "border-brand-500/30 bg-brand-500/10" : "border-white/10 bg-white/5"
+              } cursor-pointer hover:bg-white/10 transition-all`}>
+                <div className={`w-5 h-5 rounded-lg bg-gradient-to-br ${plan.color} flex items-center justify-center`}>
+                  <Icon className="w-3 h-3 text-white" />
+                </div>
+                <span className="text-xs font-semibold text-white/70">{plan.name}</span>
+                {isTrialing && trialDays !== null && (
+                  <span className="text-[9px] font-bold bg-brand-500/20 text-brand-400 px-1.5 py-0.5 rounded-full">
+                    {trialDays}d trial
+                  </span>
+                )}
+              </div>
+            </Link>
             <Link href="/dashboard/ai-builder">
               <button className="btn-premium text-sm">
                 <Sparkles className="w-4 h-4" />
@@ -131,17 +167,23 @@ export default function DashboardOverview() {
         {/* Usage bar */}
         <div className="relative z-10 mt-5">
           <div className="flex justify-between text-xs text-white/40 mb-1.5">
-            <span>Monthly Usage</span>
-            <span>0 / 2,000 cards</span>
+            <span>Monthly Card Usage</span>
+            <span>{cards.toLocaleString()} / {limit === -1 ? "∞" : limit.toLocaleString()}</span>
           </div>
           <div className="h-2 bg-white/10 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: "0%" }}
+              animate={{ width: limit === -1 ? "0%" : `${pct}%` }}
               transition={{ duration: 1.5, ease: "easeOut" }}
-              className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500"
+              className={`h-full rounded-full ${pct >= 90 ? "bg-rose-500" : pct >= 70 ? "bg-amber-500" : "bg-gradient-to-r from-brand-500 to-violet-500"}`}
             />
           </div>
+          {limit !== -1 && (
+            <div className="flex justify-between text-[10px] text-white/25 mt-1">
+              <span>{pct}% used</span>
+              <span>{Math.max(0, limit - cards).toLocaleString()} remaining</span>
+            </div>
+          )}
         </div>
       </motion.div>
 
