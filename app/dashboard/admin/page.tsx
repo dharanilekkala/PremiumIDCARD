@@ -3,13 +3,12 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
-  Crown, Building2, Users, CreditCard, TrendingUp, ArrowRight,
-  Globe, Shield, Zap, CheckCircle, AlertCircle, Clock, Activity,
-  DollarSign, BarChart3, ChevronRight,
+  Crown, Building2, Users, TrendingUp, ArrowRight,
+  Globe, Shield, Activity,
+  BarChart3, ChevronRight, Clock,
 } from "lucide-react";
 import { getOrganizations, getUsers, ORG_CATEGORY_META, type Organization } from "@/lib/auth";
 import { getLogs, ACTION_META } from "@/lib/auditLog";
-import { getBillingHistory, PLANS } from "@/lib/subscription";
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" });
@@ -18,42 +17,27 @@ function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
 }
 
-function PlanDot({ plan }: { plan: Organization["subscriptionPlan"] }) {
-  const cfg = { free:"bg-white/20", pro:"bg-brand-500", enterprise:"bg-amber-500" };
-  return <span className={`inline-block w-2 h-2 rounded-full ${cfg[plan]}`} />;
-}
-
 export default function AdminPage() {
-  const [orgs,    setOrgs]    = useState<ReturnType<typeof getOrganizations>>([]);
-  const [users,   setUsers]   = useState<ReturnType<typeof getUsers>>([]);
-  const [logs,    setLogs]    = useState<ReturnType<typeof getLogs>>([]);
-  const [billing, setBilling] = useState<ReturnType<typeof getBillingHistory>>([]);
+  const [orgs,  setOrgs]  = useState<ReturnType<typeof getOrganizations>>([]);
+  const [users, setUsers] = useState<ReturnType<typeof getUsers>>([]);
+  const [logs,  setLogs]  = useState<ReturnType<typeof getLogs>>([]);
 
   useEffect(() => {
     setOrgs(getOrganizations());
     setUsers(getUsers());
     setLogs(getLogs().reverse().slice(0, 20));
-    setBilling(getBillingHistory());
   }, []);
 
-  const totalRevenue   = billing.filter(b => b.status === "paid").reduce((s, b) => s + b.amount, 0);
-  const thisMonthBills = billing.filter(b => {
-    const d = new Date(b.date); const now = new Date();
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  });
-  const monthRevenue = thisMonthBills.filter(b => b.status === "paid").reduce((s, b) => s + b.amount, 0);
-
-  const activeOrgs = orgs.filter(o => o.status === "active").length;
+  const activeOrgs  = orgs.filter(o => o.status === "active").length;
   const activeUsers = users.filter(u => u.status === "active").length;
-  const planDist = { free: orgs.filter(o=>o.subscriptionPlan==="free").length, pro: orgs.filter(o=>o.subscriptionPlan==="pro").length, enterprise: orgs.filter(o=>o.subscriptionPlan==="enterprise").length };
 
   const recentOrgs = [...orgs].sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0,5);
 
   const statCards = [
-    { label:"Total Organizations", value:orgs.length.toString(),    sub:`${activeOrgs} active`,          icon:Globe,      color:"from-brand-500 to-violet-500",   glow:"#6366f1" },
-    { label:"Total Users",         value:users.length.toString(),   sub:`${activeUsers} active`,         icon:Users,      color:"from-emerald-500 to-teal-500",   glow:"#10b981" },
-    { label:"Total Revenue",       value:`₹${totalRevenue.toLocaleString("en-IN")}`, sub:"all-time",    icon:DollarSign, color:"from-amber-500 to-orange-500",   glow:"#f59e0b" },
-    { label:"Monthly Revenue",     value:`₹${monthRevenue.toLocaleString("en-IN")}`, sub:"this month", icon:TrendingUp, color:"from-violet-500 to-purple-600",  glow:"#8b5cf6" },
+    { label:"Total Organizations", value:orgs.length.toString(),  sub:`${activeOrgs} active`,  icon:Globe,      color:"from-brand-500 to-violet-500",  glow:"#6366f1" },
+    { label:"Total Users",         value:users.length.toString(), sub:`${activeUsers} active`, icon:Users,      color:"from-emerald-500 to-teal-500",  glow:"#10b981" },
+    { label:"Active Orgs",         value:activeOrgs.toString(),   sub:"currently active",      icon:TrendingUp, color:"from-amber-500 to-orange-500",  glow:"#f59e0b" },
+    { label:"Active Users",        value:activeUsers.toString(),  sub:"currently active",      icon:Activity,   color:"from-violet-500 to-purple-600", glow:"#8b5cf6" },
   ];
 
   return (
@@ -100,52 +84,33 @@ export default function AdminPage() {
       </div>
 
       {/* Middle row */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
 
-        {/* Plan distribution */}
+        {/* Org types distribution */}
         <motion.div initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.2 }}
           className="glass-card p-5 rounded-2xl border border-white/[0.06]">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-sm font-bold text-white">Plan Distribution</h3>
+            <h3 className="text-sm font-bold text-white">Organization Types</h3>
             <BarChart3 className="w-4 h-4 text-white/30" />
           </div>
-          <div className="space-y-4">
-            {([
-              { key:"enterprise", label:"Enterprise", val:planDist.enterprise, color:"bg-amber-500", text:"text-amber-400" },
-              { key:"pro",        label:"Pro",         val:planDist.pro,        color:"bg-brand-500", text:"text-brand-400" },
-              { key:"free",       label:"Free",        val:planDist.free,       color:"bg-white/20",  text:"text-white/40" },
-            ]).map(p => {
-              const pct = orgs.length > 0 ? Math.round((p.val / orgs.length) * 100) : 0;
+          <div className="grid grid-cols-2 gap-2">
+            {(Object.keys(ORG_CATEGORY_META) as (keyof typeof ORG_CATEGORY_META)[]).map(k => {
+              const count = orgs.filter(o => o.orgType === k).length;
+              if (!count) return null;
+              const pct = orgs.length > 0 ? Math.round((count / orgs.length) * 100) : 0;
               return (
-                <div key={p.key}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs text-white/60">{p.label}</span>
-                    <span className={`text-xs font-semibold ${p.text}`}>{p.val} orgs ({pct}%)</span>
+                <div key={k} className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base">{ORG_CATEGORY_META[k].icon}</span>
+                    <span className="text-xs text-white/60">{ORG_CATEGORY_META[k].label}</span>
                   </div>
-                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                    <motion.div initial={{ width:0 }} animate={{ width:`${pct}%` }} transition={{ duration:1, delay:0.4 }}
-                      className={`h-full rounded-full ${p.color}`} />
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-bold text-white">{count}</span>
+                    <span className="text-[10px] text-white/30">{pct}%</span>
                   </div>
                 </div>
               );
             })}
-          </div>
-
-          <div className="mt-5 pt-4 border-t border-white/[0.06]">
-            <h4 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3">Org Types</h4>
-            <div className="grid grid-cols-2 gap-2">
-              {(Object.keys(ORG_CATEGORY_META) as (keyof typeof ORG_CATEGORY_META)[]).map(k => {
-                const count = orgs.filter(o => o.orgType === k).length;
-                if (!count) return null;
-                return (
-                  <div key={k} className="flex items-center gap-2 text-xs text-white/50">
-                    <span>{ORG_CATEGORY_META[k].icon}</span>
-                    <span>{ORG_CATEGORY_META[k].label}</span>
-                    <span className="ml-auto font-semibold text-white">{count}</span>
-                  </div>
-                );
-              })}
-            </div>
           </div>
         </motion.div>
 
@@ -172,45 +137,9 @@ export default function AdminPage() {
                     <div className="text-xs font-semibold text-white truncate">{org.name}</div>
                     <div className="text-[10px] text-white/30">{meta.label} · {fmtDate(org.createdAt)}</div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <PlanDot plan={org.subscriptionPlan} />
-                    <span className={`text-[10px] capitalize ${org.status === "active" ? "text-emerald-400" : "text-red-400"}`}>
-                      {org.status}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-
-        {/* Recent billing */}
-        <motion.div initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.3 }}
-          className="glass-card p-5 rounded-2xl border border-white/[0.06]">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-white">Recent Payments</h3>
-            <Link href="/dashboard/subscription" className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1">
-              Billing <ChevronRight className="w-3 h-3" />
-            </Link>
-          </div>
-          <div className="space-y-3">
-            {billing.slice(0,6).length === 0 ? (
-              <div className="text-center py-8 text-white/25 text-sm">No payments yet</div>
-            ) : billing.slice(0,6).map(b => {
-              const plan = PLANS[b.plan];
-              return (
-                <div key={b.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/[0.03] transition-colors">
-                  <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${plan?.color ?? "from-white/10 to-white/5"} flex items-center justify-center shrink-0`}>
-                    <CreditCard className="w-3.5 h-3.5 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-white">{plan?.name ?? b.plan} Plan</div>
-                    <div className="text-[10px] text-white/30">{b.invoiceNo} · {fmtDate(b.date)}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs font-bold text-emerald-400">₹{b.amount.toLocaleString("en-IN")}</div>
-                    <div className={`text-[10px] capitalize ${b.status==="paid" ? "text-emerald-400/60" : "text-red-400/60"}`}>{b.status}</div>
-                  </div>
+                  <span className={`text-[10px] font-semibold capitalize ${org.status === "active" ? "text-emerald-400" : "text-red-400"}`}>
+                    {org.status}
+                  </span>
                 </div>
               );
             })}
@@ -255,12 +184,11 @@ export default function AdminPage() {
       </motion.div>
 
       {/* Quick links */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {[
           { label:"Organizations",  href:"/dashboard/organizations", icon:Globe,   color:"from-brand-500 to-violet-500",  desc:"Manage tenants" },
           { label:"Users",          href:"/dashboard/users",         icon:Users,   color:"from-emerald-500 to-teal-500",  desc:"All users"      },
           { label:"Audit Logs",     href:"/dashboard/audit-logs",    icon:Shield,  color:"from-violet-500 to-purple-600", desc:"Security trail" },
-          { label:"Billing",        href:"/dashboard/subscription",  icon:CreditCard,color:"from-amber-500 to-orange-500",desc:"Payments"       },
         ].map((item, i) => (
           <Link key={item.label} href={item.href}>
             <motion.div initial={{ opacity:0, scale:0.9 }} animate={{ opacity:1, scale:1 }} transition={{ delay:0.4+i*0.06 }}

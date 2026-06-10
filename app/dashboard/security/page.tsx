@@ -36,7 +36,6 @@ const PERM_LABELS: Record<string, string> = {
   "generate:cards":       "Generate Cards",
   "delete:cards":         "Delete Cards",
   "view:analytics":       "View Analytics",
-  "manage:billing":       "Manage Billing",
   "view:audit_logs":      "View Audit Logs",
   "manage:roles":         "Manage Roles",
   "bulk:generate":        "Bulk Generate",

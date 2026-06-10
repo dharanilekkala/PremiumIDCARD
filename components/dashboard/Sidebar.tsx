@@ -6,11 +6,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, LayoutDashboard, Bot, PenTool, QrCode, BarChart3,
   Users, Settings, ChevronLeft, ChevronRight, LogOut, Shield,
-  Crown, AlertTriangle, CreditCard, Globe, ClipboardList,
+  Crown, AlertTriangle, Globe, ClipboardList,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSubscription } from "@/contexts/SubscriptionContext";
-import { PLANS, getPlanBadgeColor, type PlanId } from "@/lib/subscription";
 import { ROLE_META, getUserInitials, type UserRole } from "@/lib/auth";
 
 // ── Nav definitions with role visibility ──────────────────────────────────────
@@ -23,7 +21,6 @@ const NAV = [
   { label:"Analytics",       href:"/dashboard/analytics",     icon:BarChart3,       roles:["SuperAdmin","Admin"]            as UserRole[],   badge:null  },
   { label:"Users",           href:"/dashboard/users",         icon:Users,           roles:["SuperAdmin","Admin"]            as UserRole[],   badge:null  },
   { label:"Audit Logs",      href:"/dashboard/audit-logs",    icon:ClipboardList,   roles:["SuperAdmin","Admin"]            as UserRole[],   badge:null  },
-  { label:"Billing",         href:"/dashboard/subscription",  icon:CreditCard,      roles:["SuperAdmin"]                   as UserRole[],   badge:null  },
   { label:"Organizations",   href:"/dashboard/organizations", icon:Globe,           roles:["SuperAdmin"]                   as UserRole[],   badge:null  },
   { label:"Security",        href:"/dashboard/security",      icon:Shield,          roles:["SuperAdmin","Admin"]           as UserRole[],   badge:null  },
   { label:"Settings",        href:"/dashboard/settings",      icon:Settings,        roles:["SuperAdmin"]                   as UserRole[],   badge:null  },
@@ -46,7 +43,6 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router   = useRouter();
   const { session, logout, role } = useAuth();
-  const { planId } = useSubscription();
 
   const visibleNav = NAV.filter(item =>
     !item.roles || (role && item.roles.includes(role))
@@ -157,36 +153,6 @@ export default function Sidebar() {
           );
         })}
       </nav>
-
-      {/* Plan badge */}
-      <AnimatePresence>
-        {!collapsed && (() => {
-          const plan   = PLANS[planId];
-          const colors = getPlanBadgeColor(planId);
-          const isTop  = planId === "enterprise" || planId === "business";
-          return isTop ? (
-            <motion.div key="plan-top" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
-              className={`mx-3 mb-3 p-2.5 rounded-xl border ${colors.border} ${colors.bg} flex items-center gap-2`}>
-              <Crown className={`w-3.5 h-3.5 ${colors.text} shrink-0`} />
-              <span className={`text-[10px] font-bold ${colors.text}`}>{plan.name} Plan</span>
-            </motion.div>
-          ) : (
-            <motion.div key="plan-upgrade" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
-              className="mx-3 mb-3 p-3 rounded-xl border border-amber-500/20 bg-amber-500/5">
-              <div className="flex items-center gap-2 mb-1">
-                <Crown className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-xs font-bold text-amber-400">{plan.name} Plan</span>
-              </div>
-              <p className="text-[10px] text-white/30 mb-2">Upgrade for unlimited AI Builder</p>
-              <Link href="/dashboard/subscription">
-                <button className="w-full text-xs font-semibold py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 hover:bg-amber-500/30 transition-colors">
-                  Upgrade Now
-                </button>
-              </Link>
-            </motion.div>
-          );
-        })()}
-      </AnimatePresence>
 
       {/* Bottom: user + logout */}
       <div className={`border-t border-white/[0.06] p-3 flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>

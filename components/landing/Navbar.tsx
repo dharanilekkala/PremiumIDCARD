@@ -26,7 +26,6 @@ const navLinks = [
     ],
   },
   { label: "Templates", href: "#templates" },
-  { label: "Pricing", href: "#pricing" },
   { label: "Enterprise", href: "#enterprise" },
 ];
 

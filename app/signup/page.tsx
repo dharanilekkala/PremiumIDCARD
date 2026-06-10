@@ -10,7 +10,6 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { registerOrganization, type OrgCategory } from "@/lib/auth";
-import { initSubscription } from "@/lib/subscription";
 import { addLog } from "@/lib/auditLog";
 
 const ORG_OPTIONS: { value: OrgCategory; label: string; desc: string; Icon: React.ElementType; color: string }[] = [
@@ -84,9 +83,7 @@ export default function SignupPage() {
       return;
     }
 
-    // Seed free subscription for new org
     if (result.session) {
-      initSubscription(result.session.organizationId, result.session.userId);
       addLog({
         userId: result.session.userId, userName: result.session.name,
         email: result.session.email, action: "login",

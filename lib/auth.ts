@@ -33,7 +33,6 @@ export interface Organization {
   id:               string;
   name:             string;
   orgType:          OrgCategory;
-  subscriptionPlan: "free" | "pro" | "enterprise";
   status:           "active" | "suspended";
   adminEmail:       string;
   adminName:        string;
@@ -58,7 +57,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   SuperAdmin: [
     "manage:organizations", "manage:users", "manage:templates",
     "generate:cards",       "delete:cards", "view:analytics",
-    "manage:billing",       "view:audit_logs", "manage:roles",
+    "view:audit_logs",      "manage:roles",
     "bulk:generate",        "upload:excel", "upload:photos",
     "view:cards",           "download:cards",
   ],
@@ -115,13 +114,13 @@ export const SEED_ORG_ID = "org1";
 const SEED_ORGS: Organization[] = [
   {
     id: "org1", name: "IDForge Demo Corp", orgType: "corporate",
-    subscriptionPlan: "enterprise", status: "active",
+    status: "active",
     adminEmail: "superadmin@idforge.ai", adminName: "Super Admin",
     phone: "+91 98765 00001", createdAt: "2024-01-01T00:00:00Z",
   },
   {
     id: "org2", name: "Acme School Board", orgType: "school",
-    subscriptionPlan: "pro", status: "active",
+    status: "active",
     adminEmail: "sunita@acmeschool.edu", adminName: "Sunita Sharma",
     phone: "+91 98765 00002", createdAt: "2024-04-10T00:00:00Z",
   },
@@ -195,7 +194,7 @@ export function createOrganization(data: {
   const org: Organization = {
     id: `org${Date.now()}`,
     name: data.name, orgType: data.orgType,
-    subscriptionPlan: "free", status: "active",
+    status: "active",
     adminEmail: data.adminEmail, adminName: data.adminName,
     phone: data.phone, address: data.address,
     createdAt: new Date().toISOString(),

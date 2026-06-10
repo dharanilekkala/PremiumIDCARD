@@ -21,17 +21,6 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" });
 }
 
-function PlanBadge({ plan }: { plan: Organization["subscriptionPlan"] }) {
-  const cfg = {
-    free:       "bg-white/5 text-white/40 border-white/10",
-    pro:        "bg-brand-500/10 text-brand-400 border-brand-500/20",
-    enterprise: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  };
-  return (
-    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border capitalize ${cfg[plan]}`}>{plan}</span>
-  );
-}
-
 function StatusBadge({ status }: { status: Organization["status"] }) {
   return (
     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border capitalize ${
@@ -59,7 +48,6 @@ function OrgModal({ mode, target, onClose, onSuccess }: OrgModalProps) {
   const [adminEmail,setAdminEmail]= useState(target?.adminEmail?? "");
   const [phone,     setPhone]     = useState(target?.phone     ?? "");
   const [address,   setAddress]   = useState(target?.address   ?? "");
-  const [plan,      setPlan]      = useState<Organization["subscriptionPlan"]>(target?.subscriptionPlan ?? "free");
   const [status,    setStatus]    = useState<Organization["status"]>(target?.status ?? "active");
   const [loading,   setLoading]   = useState(false);
   const [error,     setError]     = useState<string | null>(null);
@@ -77,7 +65,7 @@ function OrgModal({ mode, target, onClose, onSuccess }: OrgModalProps) {
       if (!res.ok) { setError(res.error ?? "Failed to create organization."); setLoading(false); return; }
       addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"user_create", module:"Organizations", details:`Created org: ${name}` });
     } else if (target) {
-      updateOrganization(target.id, { name: name.trim(), orgType, adminName: adminName.trim(), adminEmail: adminEmail.trim(), phone, address, subscriptionPlan: plan, status });
+      updateOrganization(target.id, { name: name.trim(), orgType, adminName: adminName.trim(), adminEmail: adminEmail.trim(), phone, address, status });
       addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"settings_change", module:"Organizations", details:`Updated org: ${name}` });
     }
     onSuccess();
@@ -113,7 +101,7 @@ function OrgModal({ mode, target, onClose, onSuccess }: OrgModalProps) {
                 className="w-full h-10 px-3 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/25 outline-none focus:border-brand-500/50 transition-colors" />
             </div>
 
-            <div>
+            <div className="col-span-2">
               <label className="block text-xs font-semibold text-white/50 mb-1.5 uppercase tracking-wider">Type</label>
               <div className="relative">
                 <select value={orgType} onChange={e => setOrgType(e.target.value as OrgCategory)}
@@ -122,19 +110,6 @@ function OrgModal({ mode, target, onClose, onSuccess }: OrgModalProps) {
                     <option key={c} value={c} className="bg-[#0d1120]">
                       {ORG_CATEGORY_META[c].icon} {ORG_CATEGORY_META[c].label}
                     </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-white/50 mb-1.5 uppercase tracking-wider">Plan</label>
-              <div className="relative">
-                <select value={plan} onChange={e => setPlan(e.target.value as Organization["subscriptionPlan"])}
-                  className="w-full h-10 px-3 rounded-xl bg-white/5 border border-white/10 text-sm text-white outline-none focus:border-brand-500/50 appearance-none cursor-pointer">
-                  {(["free","pro","enterprise"] as const).map(p => (
-                    <option key={p} value={p} className="bg-[#0d1120] capitalize">{p.charAt(0).toUpperCase()+p.slice(1)}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
@@ -287,10 +262,10 @@ export default function OrganizationsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Total Orgs",   value: orgs.length,                                   color: "from-brand-500 to-violet-500" },
-          { label: "Active",       value: orgs.filter(o=>o.status==="active").length,    color: "from-emerald-500 to-teal-500" },
-          { label: "Suspended",    value: orgs.filter(o=>o.status==="suspended").length, color: "from-red-500 to-rose-500"     },
-          { label: "Enterprise",   value: orgs.filter(o=>o.subscriptionPlan==="enterprise").length, color: "from-amber-500 to-orange-500" },
+          { label: "Total Orgs",  value: orgs.length,                                   color: "from-brand-500 to-violet-500" },
+          { label: "Active",      value: orgs.filter(o=>o.status==="active").length,    color: "from-emerald-500 to-teal-500" },
+          { label: "Suspended",   value: orgs.filter(o=>o.status==="suspended").length, color: "from-red-500 to-rose-500"     },
+          { label: "Org Types",   value: new Set(orgs.map(o=>o.orgType)).size,           color: "from-amber-500 to-orange-500" },
         ].map((s, i) => (
           <motion.div key={s.label} initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay: i*0.06 }}
             className="glass-card p-4 rounded-2xl border border-white/[0.06]">
@@ -330,14 +305,14 @@ export default function OrganizationsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/[0.06]">
-                {["Organization", "Type", "Plan", "Status", "Admin", "Users", "Created", "Actions"].map(h => (
+                {["Organization", "Type", "Status", "Admin", "Users", "Created", "Actions"].map(h => (
                   <th key={h} className="text-left text-[11px] font-semibold text-white/30 uppercase tracking-wider px-5 py-4">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={8} className="text-center text-white/30 py-12 text-sm">No organizations match the current filters.</td></tr>
+                <tr><td colSpan={7} className="text-center text-white/30 py-12 text-sm">No organizations match the current filters.</td></tr>
               ) : filtered.map((org, i) => {
                 const memberCount = getUsersByOrg(org.id).length;
                 const catMeta     = ORG_CATEGORY_META[org.orgType] ?? ORG_CATEGORY_META.custom;
@@ -360,7 +335,6 @@ export default function OrganizationsPage() {
                     <td className="px-5 py-3.5">
                       <span className={`text-xs font-medium ${catMeta.color}`}>{catMeta.label}</span>
                     </td>
-                    <td className="px-5 py-3.5"><PlanBadge plan={org.subscriptionPlan} /></td>
                     <td className="px-5 py-3.5"><StatusBadge status={org.status} /></td>
                     <td className="px-5 py-3.5">
                       <div className="text-xs text-white/60">{org.adminName}</div>

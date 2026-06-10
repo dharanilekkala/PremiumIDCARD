@@ -5,7 +5,6 @@ import FeaturesSection from "@/components/landing/FeaturesSection";
 import AIBuilderShowcase from "@/components/landing/AIBuilderShowcase";
 import BulkGenShowcase from "@/components/landing/BulkGenShowcase";
 import TemplatesSection from "@/components/landing/TemplatesSection";
-import PricingSection from "@/components/landing/PricingSection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import FAQSection from "@/components/landing/FAQSection";
 import CTASection from "@/components/landing/CTASection";
@@ -21,7 +20,6 @@ export default function HomePage() {
       <AIBuilderShowcase />
       <BulkGenShowcase />
       <TemplatesSection />
-      <PricingSection />
       <TestimonialsSection />
       <FAQSection />
       <CTASection />
