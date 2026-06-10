@@ -378,7 +378,7 @@ export default function PricingPage() {
         <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
           className="text-center mb-10">
           <h2 className="text-3xl font-bold text-white mb-2">Compare Plans</h2>
-          <p className="text-white/40 text-sm">See exactly what's included in each plan</p>
+          <p className="text-white/40 text-sm">See exactly what&apos;s included in each plan</p>
         </motion.div>
 
         <div className="overflow-x-auto rounded-2xl border border-white/[0.07] glass-card">

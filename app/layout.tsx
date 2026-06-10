@@ -1,14 +1,6 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-  preload: false,        // skip Google Fonts network fetch during build
-  fallback: ["system-ui", "Arial", "sans-serif"],
-});
+// Inter is loaded via @import in globals.css — no next/font/google needed
 
 export const metadata: Metadata = {
   title: "IDForge AI — Create Professional ID Cards with AI",
@@ -29,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} dark`} suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
       <body className="min-h-screen bg-background font-sans antialiased">
         {children}
       </body>

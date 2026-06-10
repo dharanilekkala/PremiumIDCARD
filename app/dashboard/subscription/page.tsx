@@ -180,7 +180,7 @@ export default function SubscriptionPage() {
       {actionDone === "cancelled" && (
         <div className="flex items-center gap-3 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
           <XCircle className="w-4 h-4 shrink-0" />
-          Subscription cancelled. You'll retain access until the end of your billing period.
+          Subscription cancelled. You&apos;ll retain access until the end of your billing period.
         </div>
       )}
       {actionDone === "renewed" && (
@@ -270,7 +270,7 @@ export default function SubscriptionPage() {
             <div className="mt-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20">
               <p className="text-sm text-rose-300 font-semibold mb-1">Cancel subscription?</p>
               <p className="text-xs text-white/40 mb-3">
-                You'll retain access until {renewDate}. This action cannot be undone.
+                You&apos;ll retain access until {renewDate}. This action cannot be undone.
               </p>
               <div className="flex gap-2">
                 <button onClick={handleCancel} className="px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs font-semibold hover:bg-rose-500/30 transition-all">

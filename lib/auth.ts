@@ -167,11 +167,13 @@ export function getOrganizations(): Organization[] {
     const raw = localStorage.getItem(LS_ORGS);
     if (!raw) { localStorage.setItem(LS_ORGS, JSON.stringify(SEED_ORGS)); return SEED_ORGS; }
     const orgs = JSON.parse(raw) as Organization[];
-    // Migrate old records missing new fields
+    // Migrate old records missing new fields (defaults applied after spread)
     return orgs.map(o => ({
-      orgType: "custom" as OrgCategory,
-      adminEmail: "", adminName: "", createdAt: "2024-01-01T00:00:00Z",
       ...o,
+      orgType:    (o.orgType    ?? "custom") as OrgCategory,
+      adminEmail: o.adminEmail ?? "",
+      adminName:  o.adminName  ?? "",
+      createdAt:  o.createdAt  ?? "2024-01-01T00:00:00Z",
     }));
   } catch { return SEED_ORGS; }
 }
