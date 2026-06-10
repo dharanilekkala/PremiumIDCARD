@@ -4,28 +4,64 @@ import {
   type ReactNode,
 } from "react";
 import {
-  getSession, login as authLogin, logout as authLogout, logoutAll as authLogoutAll,
-  refreshSession, getUsers, hasPermission, canAccessRoute,
-  type AuthSession, type User, type LoginResult, type UserRole,
+  hasPermission, canAccessRoute,
+  type AuthSession, type User, type UserRole,
 } from "@/lib/auth";
+import {
+  apiLogin, apiLogout, apiGetSession,
+  type ApiSession,
+} from "@/lib/api";
 import { addLog } from "@/lib/auditLog";
 
 // ── Context shape ─────────────────────────────────────────────────────────────
 
+export type LoginResult =
+  | { ok: true;  session: AuthSession }
+  | { ok: false; error: string };
+
 interface AuthCtx {
-  session:      AuthSession | null;
-  user:         User | null;
-  loading:      boolean;
-  login:        (email: string, password: string, rememberMe?: boolean) => LoginResult;
-  logout:       () => void;
-  logoutAll:    () => void;
-  can:          (perm: string) => boolean;
-  canRoute:     (path: string) => boolean;
-  role:         UserRole | null;
-  reloadUser:   () => void;
+  session:    AuthSession | null;
+  user:       User | null;
+  loading:    boolean;
+  login:      (email: string, password: string, rememberMe?: boolean) => Promise<LoginResult>;
+  logout:     () => Promise<void>;
+  logoutAll:  () => Promise<void>;
+  can:        (perm: string) => boolean;
+  canRoute:   (path: string) => boolean;
+  role:       UserRole | null;
+  reloadUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthCtx | null>(null);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function apiSessionToAuthSession(s: ApiSession): AuthSession {
+  return {
+    userId:           s.userId,
+    email:            s.email,
+    name:             s.name,
+    role:             s.role as UserRole,
+    organizationId:   s.organizationId,
+    organizationName: s.organizationName,
+    orgType:          s.orgType,
+  };
+}
+
+function sessionToUser(s: AuthSession): User {
+  return {
+    id:             s.userId,
+    name:           s.name,
+    email:          s.email,
+    role:           s.role,
+    organizationId: s.organizationId,
+    status:         "active",
+    lastLogin:      null,
+    createdAt:      new Date().toISOString(),
+    failedAttempts: 0,
+    lockedUntil:    null,
+  };
+}
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
@@ -34,68 +70,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user,    setUser]    = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadUser = useCallback((s: AuthSession | null) => {
-    if (!s) { setUser(null); return; }
-    const found = getUsers().find(u => u.id === s.userId) ?? null;
-    setUser(found);
+  const reloadUser = useCallback(async () => {
+    try {
+      const apiSess = await apiGetSession();
+      if (apiSess) {
+        const s = apiSessionToAuthSession(apiSess);
+        setSession(s);
+        setUser(sessionToUser(s));
+      } else {
+        setSession(null);
+        setUser(null);
+      }
+    } catch {
+      setSession(null);
+      setUser(null);
+    }
   }, []);
-
-  const reloadUser = useCallback(() => {
-    const s = getSession();
-    setSession(s);
-    loadUser(s);
-  }, [loadUser]);
 
   // Bootstrap on mount
   useEffect(() => {
-    refreshSession();          // re-sync cookie from localStorage
-    const s = getSession();
-    setSession(s);
-    loadUser(s);
-    setLoading(false);
-  }, [loadUser]);
+    reloadUser().finally(() => setLoading(false));
+  }, [reloadUser]);
 
-  const login = useCallback((email: string, password: string, rememberMe = false): LoginResult => {
-    const result = authLogin(email, password, rememberMe);
-    if (result.ok) {
-      setSession(result.session);
-      loadUser(result.session);
-      addLog({
-        userId: result.session.userId, userName: result.session.name,
-        email: result.session.email, action: "login",
-        module: "Auth", details: "Successful login",
-      });
-    } else {
-      addLog({
-        userId: "unknown", userName: "—", email,
-        action: result.error === "account_locked" ? "account_locked" : "login_failed",
-        module: "Auth",
-        details: `Login failed: ${result.error}`,
-      });
+  const login = useCallback(async (
+    email: string, password: string, _rememberMe = false
+  ): Promise<LoginResult> => {
+    try {
+      const apiSess = await apiLogin(email, password);
+      const s = apiSessionToAuthSession(apiSess);
+      setSession(s);
+      setUser(sessionToUser(s));
+      // Fire-and-forget audit log (login already logged server-side; skip duplicate)
+      return { ok: true, session: s };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Login failed";
+      // Log failed attempt client-side only (server already logged it)
+      void addLog({ action: "login_failed", module: "Auth", details: msg });
+      return { ok: false, error: msg };
     }
-    return result;
-  }, [loadUser]);
+  }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     if (session) {
-      addLog({
-        userId: session.userId, userName: session.name, email: session.email,
-        action: "logout", module: "Auth", details: "User logged out",
-      });
+      void addLog({ action: "logout", module: "Auth", details: "User logged out" });
     }
-    authLogout();
+    try { await apiLogout(); } catch { /* ignore */ }
     setSession(null);
     setUser(null);
   }, [session]);
 
-  const logoutAll = useCallback(() => {
+  const logoutAll = useCallback(async () => {
     if (session) {
-      addLog({
-        userId: session.userId, userName: session.name, email: session.email,
-        action: "logout_all", module: "Auth", details: "Logged out from all devices",
-      });
+      void addLog({ action: "logout_all", module: "Auth", details: "Logged out from all devices" });
     }
-    authLogoutAll();
+    try { await apiLogout(); } catch { /* ignore */ }
     setSession(null);
     setUser(null);
   }, [session]);

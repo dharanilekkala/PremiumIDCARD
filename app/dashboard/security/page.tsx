@@ -1,14 +1,14 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
-  Shield, Search, Filter, Download, RefreshCw,
+  Shield, Search, Download, RefreshCw,
   Activity, Lock, Users, Eye, CheckCircle, X,
   AlertTriangle, Clock, Globe, LogOut,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getLogs, ACTION_META, clearLogs, type AuditEntry } from "@/lib/auditLog";
-import { ROLE_PERMISSIONS, ALL_ROLES, ROLE_META, type UserRole, logoutAll } from "@/lib/auth";
+import { getLogs, ACTION_META, type AuditEntry } from "@/lib/auditLog";
+import { ROLE_PERMISSIONS, ALL_ROLES, ROLE_META } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -100,11 +100,18 @@ export default function SecurityPage() {
   const { session, logout } = useAuth();
   const router = useRouter();
 
-  const [tab,      setTab]      = useState<"audit" | "roles" | "sessions">("audit");
-  const [search,   setSearch]   = useState("");
-  const [action,   setAction]   = useState("all");
-  const [module,   setModule]   = useState("all");
-  const [logs,     setLogs]     = useState<AuditEntry[]>(() => getLogs().reverse());
+  const [tab,    setTab]    = useState<"audit" | "roles" | "sessions">("audit");
+  const [search, setSearch] = useState("");
+  const [action, setAction] = useState("all");
+  const [module, setModule] = useState("all");
+  const [logs,   setLogs]   = useState<AuditEntry[]>([]);
+
+  const load = useCallback(async () => {
+    const result = await getLogs();
+    setLogs(result);
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   const modules = useMemo(() => ["all", ...Array.from(new Set(logs.map(l => l.module)))], [logs]);
   const actions = useMemo(() => ["all", ...Object.keys(ACTION_META)], []);
@@ -134,15 +141,8 @@ export default function SecurityPage() {
     a.click();
   };
 
-  const handleClear = () => {
-    if (!confirm("Clear all audit logs? This cannot be undone.")) return;
-    clearLogs();
-    setLogs([]);
-  };
-
-  const handleLogoutAll = () => {
-    logoutAll();
-    logout();
+  const handleLogoutAll = async () => {
+    await logout();
     router.replace("/login");
   };
 
@@ -155,7 +155,7 @@ export default function SecurityPage() {
           <p className="text-xs text-white/40 mt-0.5">Monitor all platform activity and manage access</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setLogs(getLogs().reverse())}
+          <button onClick={() => void load()}
             className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all">
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -169,10 +169,10 @@ export default function SecurityPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label:"Total Events",    val:stats.total,  icon:Activity,       col:"from-brand-500 to-violet-500"   },
-          { label:"Successful Logins",val:stats.logins,icon:CheckCircle,    col:"from-emerald-500 to-teal-500"   },
-          { label:"Security Alerts", val:stats.alerts, icon:AlertTriangle,  col:"from-red-500 to-orange-500"     },
-          { label:"Bulk Generations",val:stats.bulk,   icon:Users,          col:"from-cyan-500 to-blue-500"      },
+          { label:"Total Events",     val:stats.total,  icon:Activity,      col:"from-brand-500 to-violet-500"   },
+          { label:"Successful Logins",val:stats.logins, icon:CheckCircle,   col:"from-emerald-500 to-teal-500"   },
+          { label:"Security Alerts",  val:stats.alerts, icon:AlertTriangle, col:"from-red-500 to-orange-500"     },
+          { label:"Bulk Generations", val:stats.bulk,   icon:Users,         col:"from-cyan-500 to-blue-500"      },
         ].map(({ label, val, icon: Icon, col }) => (
           <motion.div key={label} initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
             className="glass-card p-4 rounded-2xl border border-white/[0.06] flex items-center gap-3">
@@ -202,7 +202,6 @@ export default function SecurityPage() {
       {/* ── Audit Log Tab ── */}
       {tab === "audit" && (
         <div className="space-y-4">
-          {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
@@ -217,15 +216,8 @@ export default function SecurityPage() {
               className="h-10 px-3 rounded-xl bg-white/5 border border-white/10 text-sm text-white/60 outline-none cursor-pointer">
               {modules.map(m => <option key={m} value={m} className="bg-[#0d1120]">{m === "all" ? "All Modules" : m}</option>)}
             </select>
-            {session?.role === "SuperAdmin" && (
-              <button onClick={handleClear}
-                className="h-10 px-4 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400 hover:bg-red-500/20 transition-all">
-                Clear Logs
-              </button>
-            )}
           </div>
 
-          {/* Table */}
           <div className="glass-card rounded-2xl border border-white/[0.07] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -279,7 +271,6 @@ export default function SecurityPage() {
               <p className="text-xs text-white/40 mt-0.5">Currently signed-in devices for your account</p>
             </div>
             <div className="p-5 space-y-3">
-              {/* Current session */}
               <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center">
@@ -295,7 +286,6 @@ export default function SecurityPage() {
                 </div>
               </div>
 
-              {/* Logout all */}
               <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center">
@@ -306,7 +296,7 @@ export default function SecurityPage() {
                     <div className="text-xs text-white/40">Revoke all active sessions and sign out everywhere</div>
                   </div>
                 </div>
-                <button onClick={handleLogoutAll}
+                <button onClick={() => void handleLogoutAll()}
                   className="flex items-center gap-2 h-9 px-4 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400 hover:bg-red-500/20 transition-all">
                   <LogOut className="w-4 h-4" /> Sign Out All
                 </button>
@@ -314,7 +304,6 @@ export default function SecurityPage() {
             </div>
           </div>
 
-          {/* Security tips */}
           <div className="glass-card rounded-2xl border border-white/[0.07] p-5">
             <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
               <Shield className="w-4 h-4 text-brand-400" /> Security Recommendations
@@ -322,7 +311,7 @@ export default function SecurityPage() {
             <ul className="space-y-2 text-xs text-white/50">
               {[
                 "Use a strong, unique password (min 12 characters).",
-                `Account locks after ${5} failed attempts for ${30} minutes.`,
+                "Account locks after 5 failed attempts for 15 minutes.",
                 "Never share your credentials with other team members.",
                 "Regularly review the Audit Log for unusual activity.",
                 "Assign minimum required roles — avoid SuperAdmin for daily tasks.",

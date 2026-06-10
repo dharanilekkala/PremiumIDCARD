@@ -7,8 +7,9 @@ import {
   Globe, Shield, Activity,
   BarChart3, ChevronRight, Clock,
 } from "lucide-react";
-import { getOrganizations, getUsers, ORG_CATEGORY_META, type Organization } from "@/lib/auth";
-import { getLogs, ACTION_META } from "@/lib/auditLog";
+import { ORG_CATEGORY_META, type Organization } from "@/lib/auth";
+import { ACTION_META, type AuditEntry } from "@/lib/auditLog";
+import { apiGetOrganizations, apiGetUsers, apiGetLogs, type ApiUser } from "@/lib/api";
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" });
@@ -18,14 +19,21 @@ function fmtTime(iso: string): string {
 }
 
 export default function AdminPage() {
-  const [orgs,  setOrgs]  = useState<ReturnType<typeof getOrganizations>>([]);
-  const [users, setUsers] = useState<ReturnType<typeof getUsers>>([]);
-  const [logs,  setLogs]  = useState<ReturnType<typeof getLogs>>([]);
+  const [orgs,  setOrgs]  = useState<Organization[]>([]);
+  const [users, setUsers] = useState<ApiUser[]>([]);
+  const [logs,  setLogs]  = useState<AuditEntry[]>([]);
 
   useEffect(() => {
-    setOrgs(getOrganizations());
-    setUsers(getUsers());
-    setLogs(getLogs().reverse().slice(0, 20));
+    void (async () => {
+      const [o, u, l] = await Promise.all([
+        apiGetOrganizations(),
+        apiGetUsers(),
+        apiGetLogs({ limit: 20 }),
+      ]);
+      setOrgs(o as unknown as Organization[]);
+      setUsers(u);
+      setLogs(l);
+    })();
   }, []);
 
   const activeOrgs  = orgs.filter(o => o.status === "active").length;
@@ -127,7 +135,7 @@ export default function AdminPage() {
             {recentOrgs.length === 0 ? (
               <div className="text-center py-8 text-white/25 text-sm">No organizations yet</div>
             ) : recentOrgs.map(org => {
-              const meta = ORG_CATEGORY_META[org.orgType] ?? ORG_CATEGORY_META.custom;
+              const meta = ORG_CATEGORY_META[org.orgType as keyof typeof ORG_CATEGORY_META] ?? ORG_CATEGORY_META.custom;
               return (
                 <div key={org.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/[0.03] transition-colors">
                   <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 flex items-center justify-center text-lg shrink-0">

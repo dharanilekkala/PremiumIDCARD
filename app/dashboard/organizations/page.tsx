@@ -4,13 +4,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2, Search, Plus, Edit3, Trash2, UserCheck, UserX,
   X, Loader2, AlertCircle, CheckCircle, ChevronDown, Users,
-  MoreVertical, RefreshCw, Globe, Phone, Mail, Crown,
+  RefreshCw, Globe, Phone, Crown,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { ORG_CATEGORY_META, type OrgCategory } from "@/lib/auth";
 import {
-  getOrganizations, createOrganization, updateOrganization, deleteOrganization,
-  getUsersByOrg, ORG_CATEGORY_META, type Organization, type OrgCategory,
-} from "@/lib/auth";
+  apiGetOrganizations, apiGetUsers,
+  apiCreateOrganization, apiUpdateOrganization, apiDeleteOrganization,
+  type ApiOrganization,
+} from "@/lib/api";
 import { addLog } from "@/lib/auditLog";
 
 const ORG_CATEGORIES: OrgCategory[] = [
@@ -21,7 +23,7 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" });
 }
 
-function StatusBadge({ status }: { status: Organization["status"] }) {
+function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border capitalize ${
       status === "active"
@@ -35,20 +37,19 @@ function StatusBadge({ status }: { status: Organization["status"] }) {
 
 interface OrgModalProps {
   mode:      "create" | "edit";
-  target?:   Organization;
+  target?:   ApiOrganization;
   onClose:   () => void;
   onSuccess: () => void;
 }
 
 function OrgModal({ mode, target, onClose, onSuccess }: OrgModalProps) {
-  const { session } = useAuth();
   const [name,      setName]      = useState(target?.name      ?? "");
-  const [orgType,   setOrgType]   = useState<OrgCategory>(target?.orgType ?? "school");
+  const [orgType,   setOrgType]   = useState<OrgCategory>((target?.orgType as OrgCategory) ?? "school");
   const [adminName, setAdminName] = useState(target?.adminName ?? "");
   const [adminEmail,setAdminEmail]= useState(target?.adminEmail?? "");
   const [phone,     setPhone]     = useState(target?.phone     ?? "");
   const [address,   setAddress]   = useState(target?.address   ?? "");
-  const [status,    setStatus]    = useState<Organization["status"]>(target?.status ?? "active");
+  const [status,    setStatus]    = useState(target?.status    ?? "active");
   const [loading,   setLoading]   = useState(false);
   const [error,     setError]     = useState<string | null>(null);
 
@@ -58,18 +59,21 @@ function OrgModal({ mode, target, onClose, onSuccess }: OrgModalProps) {
       setError("Organization name, admin name, and admin email are required."); return;
     }
     setLoading(true); setError(null);
-    await new Promise(r => setTimeout(r, 400));
 
-    if (mode === "create") {
-      const res = createOrganization({ name: name.trim(), orgType, adminName: adminName.trim(), adminEmail: adminEmail.trim(), phone, address });
-      if (!res.ok) { setError(res.error ?? "Failed to create organization."); setLoading(false); return; }
-      addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"user_create", module:"Organizations", details:`Created org: ${name}` });
-    } else if (target) {
-      updateOrganization(target.id, { name: name.trim(), orgType, adminName: adminName.trim(), adminEmail: adminEmail.trim(), phone, address, status });
-      addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"settings_change", module:"Organizations", details:`Updated org: ${name}` });
+    try {
+      if (mode === "create") {
+        await apiCreateOrganization({ name: name.trim(), orgType, adminName: adminName.trim(), adminEmail: adminEmail.trim(), phone, address });
+        void addLog({ action:"org_create", module:"Organizations", details:`Created org: ${name}` });
+      } else if (target) {
+        await apiUpdateOrganization(target.id, { name: name.trim(), orgType, adminName: adminName.trim(), adminEmail: adminEmail.trim(), phone, address, status });
+        void addLog({ action:"org_update", module:"Organizations", details:`Updated org: ${name}` });
+      }
+      onSuccess();
+      onClose();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Operation failed.");
+      setLoading(false);
     }
-    onSuccess();
-    onClose();
   }
 
   return (
@@ -130,7 +134,7 @@ function OrgModal({ mode, target, onClose, onSuccess }: OrgModalProps) {
 
             <div>
               <label className="block text-xs font-semibold text-white/50 mb-1.5 uppercase tracking-wider">Phone</label>
-              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+91 98765 43210"
+              <input type="tel" value={phone ?? ""} onChange={e => setPhone(e.target.value)} placeholder="+91 98765 43210"
                 className="w-full h-10 px-3 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/25 outline-none focus:border-brand-500/50 transition-colors" />
             </div>
 
@@ -138,7 +142,7 @@ function OrgModal({ mode, target, onClose, onSuccess }: OrgModalProps) {
               <div>
                 <label className="block text-xs font-semibold text-white/50 mb-1.5 uppercase tracking-wider">Status</label>
                 <div className="relative">
-                  <select value={status} onChange={e => setStatus(e.target.value as Organization["status"])}
+                  <select value={status} onChange={e => setStatus(e.target.value)}
                     className="w-full h-10 px-3 rounded-xl bg-white/5 border border-white/10 text-sm text-white outline-none focus:border-brand-500/50 appearance-none cursor-pointer">
                     <option value="active"    className="bg-[#0d1120]">Active</option>
                     <option value="suspended" className="bg-[#0d1120]">Suspended</option>
@@ -150,7 +154,7 @@ function OrgModal({ mode, target, onClose, onSuccess }: OrgModalProps) {
 
             <div className="col-span-2">
               <label className="block text-xs font-semibold text-white/50 mb-1.5 uppercase tracking-wider">Address</label>
-              <input value={address} onChange={e => setAddress(e.target.value)} placeholder="Office / institution address"
+              <input value={address ?? ""} onChange={e => setAddress(e.target.value)} placeholder="Office / institution address"
                 className="w-full h-10 px-3 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/25 outline-none focus:border-brand-500/50 transition-colors" />
             </div>
           </div>
@@ -175,35 +179,52 @@ function OrgModal({ mode, target, onClose, onSuccess }: OrgModalProps) {
 
 export default function OrganizationsPage() {
   const { session } = useAuth();
-  const [orgs,       setOrgs]       = useState<Organization[]>([]);
-  const [search,     setSearch]     = useState("");
-  const [typeFilter, setTypeFilter] = useState<OrgCategory | "all">("all");
-  const [modal,      setModal]      = useState<"create" | "edit" | null>(null);
-  const [editTarget, setEditTarget] = useState<Organization | null>(null);
-  const [openMenu,   setOpenMenu]   = useState<string | null>(null);
-  const [toast,      setToast]      = useState<{ msg: string; ok: boolean } | null>(null);
+  const [orgs,        setOrgs]        = useState<ApiOrganization[]>([]);
+  const [userCounts,  setUserCounts]  = useState<Record<string, number>>({});
+  const [search,      setSearch]      = useState("");
+  const [typeFilter,  setTypeFilter]  = useState<OrgCategory | "all">("all");
+  const [modal,       setModal]       = useState<"create" | "edit" | null>(null);
+  const [editTarget,  setEditTarget]  = useState<ApiOrganization | null>(null);
+  const [toast,       setToast]       = useState<{ msg: string; ok: boolean } | null>(null);
 
-  const load = useCallback(() => { setOrgs(getOrganizations()); }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback(async () => {
+    const [o, u] = await Promise.all([apiGetOrganizations(), apiGetUsers()]);
+    setOrgs(o);
+    const counts: Record<string, number> = {};
+    for (const user of u) {
+      counts[user.organizationId] = (counts[user.organizationId] ?? 0) + 1;
+    }
+    setUserCounts(counts);
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok }); setTimeout(() => setToast(null), 3000);
   };
 
-  const handleToggleStatus = (org: Organization) => {
+  const handleToggleStatus = async (org: ApiOrganization) => {
     const next = org.status === "active" ? "suspended" : "active";
-    updateOrganization(org.id, { status: next });
-    addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"settings_change", module:"Organizations", details:`${org.name} status → ${next}` });
-    showToast(`${org.name} ${next === "active" ? "activated" : "suspended"}.`, next === "active");
-    load(); setOpenMenu(null);
+    try {
+      await apiUpdateOrganization(org.id, { status: next });
+      void addLog({ action:"org_update", module:"Organizations", details:`${org.name} status → ${next}` });
+      showToast(`${org.name} ${next === "active" ? "activated" : "suspended"}.`, next === "active");
+      void load();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Failed to update status.", false);
+    }
   };
 
-  const handleDelete = (org: Organization) => {
+  const handleDelete = async (org: ApiOrganization) => {
     if (!confirm(`Delete "${org.name}"? All associated data will be lost.`)) return;
-    deleteOrganization(org.id);
-    addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"user_delete", module:"Organizations", details:`Deleted org: ${org.name}` });
-    showToast(`${org.name} deleted.`, false);
-    load(); setOpenMenu(null);
+    try {
+      await apiDeleteOrganization(org.id);
+      void addLog({ action:"org_update", module:"Organizations", details:`Deleted org: ${org.name}` });
+      showToast(`${org.name} deleted.`, false);
+      void load();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Failed to delete.", false);
+    }
   };
 
   const filtered = orgs.filter(o =>
@@ -235,7 +256,7 @@ export default function OrganizationsPage() {
       {modal && (
         <OrgModal mode={modal} target={editTarget ?? undefined}
           onClose={() => { setModal(null); setEditTarget(null); }}
-          onSuccess={() => load()}
+          onSuccess={() => void load()}
         />
       )}
 
@@ -249,7 +270,7 @@ export default function OrganizationsPage() {
           <p className="text-xs text-white/40 mt-0.5">{orgs.length} tenant organizations · SuperAdmin view</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={load} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all">
+          <button onClick={() => void load()} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all">
             <RefreshCw className="w-4 h-4" />
           </button>
           <button onClick={() => { setModal("create"); setEditTarget(null); }}
@@ -314,8 +335,8 @@ export default function OrganizationsPage() {
               {filtered.length === 0 ? (
                 <tr><td colSpan={7} className="text-center text-white/30 py-12 text-sm">No organizations match the current filters.</td></tr>
               ) : filtered.map((org, i) => {
-                const memberCount = getUsersByOrg(org.id).length;
-                const catMeta     = ORG_CATEGORY_META[org.orgType] ?? ORG_CATEGORY_META.custom;
+                const catMeta = ORG_CATEGORY_META[org.orgType as OrgCategory] ?? ORG_CATEGORY_META.custom;
+                const memberCount = userCounts[org.id] ?? 0;
                 return (
                   <motion.tr key={org.id} initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ delay: i*0.03 }}
                     className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors group">
@@ -353,26 +374,16 @@ export default function OrganizationsPage() {
                           className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-brand-400 hover:bg-brand-500/10 transition-all">
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => handleToggleStatus(org)} title={org.status === "active" ? "Suspend" : "Activate"}
+                        <button onClick={() => void handleToggleStatus(org)} title={org.status === "active" ? "Suspend" : "Activate"}
                           className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
                             org.status === "active" ? "text-white/30 hover:text-orange-400 hover:bg-orange-500/10" : "text-white/30 hover:text-emerald-400 hover:bg-emerald-500/10"
                           }`}>
                           {org.status === "active" ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
                         </button>
-                        <div className="relative">
-                          <button onClick={() => setOpenMenu(openMenu === org.id ? null : org.id)}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-all">
-                            <MoreVertical className="w-3.5 h-3.5" />
-                          </button>
-                          {openMenu === org.id && (
-                            <div className="absolute right-0 top-full mt-1 w-40 bg-[#0d1120] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
-                              <button onClick={() => handleDelete(org)}
-                                className="w-full text-left px-3 py-2.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2">
-                                <Trash2 className="w-3.5 h-3.5" /> Delete Org
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        <button onClick={() => void handleDelete(org)} title="Delete"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-all">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </td>
                   </motion.tr>

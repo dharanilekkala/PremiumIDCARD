@@ -3,29 +3,32 @@ import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users, Search, Plus, Shield, Edit3, Trash2, Crown,
-  MoreVertical, RefreshCw, X, CheckCircle, AlertCircle,
+  RefreshCw, X, CheckCircle, AlertCircle,
   Loader2, Mail, Lock, Eye, EyeOff, UserCheck, UserX,
   Key, Activity, ChevronDown,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { addLog } from "@/lib/auditLog";
 import {
-  getUsers, getUsersByOrg, createUser, updateUser, deleteUser,
-  resetUserPassword, ROLE_META, ALL_ROLES, getUserInitials,
-  type User, type UserRole, type UserStatus,
+  ROLE_META, ALL_ROLES, getUserInitials,
+  type UserRole, type UserStatus,
 } from "@/lib/auth";
+import {
+  apiGetUsers, apiCreateUser, apiUpdateUser, apiDeleteUser, apiResetPassword,
+  type ApiUser,
+} from "@/lib/api";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: UserStatus }) {
-  const cfg = {
+function StatusBadge({ status }: { status: string }) {
+  const cfg: Record<string, string> = {
     active:    "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
     inactive:  "bg-white/5 text-white/40 border-white/10",
     suspended: "bg-red-500/10 text-red-400 border-red-500/20",
     locked:    "bg-orange-500/10 text-orange-400 border-orange-500/20",
   };
   return (
-    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border capitalize ${cfg[status]}`}>
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border capitalize ${cfg[status] ?? "bg-white/5 text-white/40 border-white/10"}`}>
       {status}
     </span>
   );
@@ -40,7 +43,7 @@ function RoleBadge({ role }: { role: UserRole }) {
   );
 }
 
-function fmtDate(iso: string | null): string {
+function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "Never";
   return new Date(iso).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" });
 }
@@ -49,17 +52,16 @@ function fmtDate(iso: string | null): string {
 
 interface UserModalProps {
   mode:       "invite" | "edit";
-  target?:    User;
+  target?:    ApiUser;
   orgId:      string;
   onClose:    () => void;
   onSuccess:  () => void;
 }
 
 function UserModal({ mode, target, orgId, onClose, onSuccess }: UserModalProps) {
-  const { session } = useAuth();
   const [name,     setName]     = useState(target?.name     ?? "");
   const [email,    setEmail]    = useState(target?.email    ?? "");
-  const [role,     setRole]     = useState<UserRole>(target?.role ?? "Operator");
+  const [role,     setRole]     = useState<UserRole>((target?.role as UserRole) ?? "Operator");
   const [password, setPassword] = useState("");
   const [showPw,   setShowPw]   = useState(false);
   const [loading,  setLoading]  = useState(false);
@@ -68,23 +70,26 @@ function UserModal({ mode, target, orgId, onClose, onSuccess }: UserModalProps) 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setError(null);
-    await new Promise(r => setTimeout(r, 400));
 
-    if (mode === "invite") {
-      if (!password || password.length < 8) { setError("Password must be at least 8 characters."); setLoading(false); return; }
-      const res = createUser({ name: name.trim(), email: email.trim(), password, role, organizationId: orgId });
-      if (!res.ok) { setError(res.error ?? "Failed to create user."); setLoading(false); return; }
-      addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"user_create", module:"Users", details:`Created ${email}` });
-    } else if (target) {
-      updateUser(target.id, { name: name.trim(), role });
-      addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"user_update", module:"Users", details:`Updated ${target.email}` });
-      if (password && password.length >= 8) {
-        resetUserPassword(target.id, password);
-        addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"password_reset", module:"Users", details:`Reset password for ${target.email}` });
+    try {
+      if (mode === "invite") {
+        if (!password || password.length < 8) { setError("Password must be at least 8 characters."); setLoading(false); return; }
+        await apiCreateUser({ name: name.trim(), email: email.trim(), password, role, organizationId: orgId });
+        void addLog({ action:"user_create", module:"Users", details:`Created ${email}` });
+      } else if (target) {
+        await apiUpdateUser(target.id, { name: name.trim(), role });
+        void addLog({ action:"user_update", module:"Users", details:`Updated ${target.email}` });
+        if (password && password.length >= 8) {
+          await apiResetPassword(target.id, password);
+          void addLog({ action:"password_reset", module:"Users", details:`Reset password for ${target.email}` });
+        }
       }
+      onSuccess();
+      onClose();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Operation failed.");
+      setLoading(false);
     }
-    onSuccess();
-    onClose();
   };
 
   return (
@@ -172,66 +177,87 @@ function UserModal({ mode, target, orgId, onClose, onSuccess }: UserModalProps) 
 
 export default function UsersPage() {
   const { session, role, reloadUser } = useAuth();
-  const [users,      setUsers]      = useState<User[]>([]);
-  const [search,     setSearch]     = useState("");
-  const [roleFilter, setRoleFilter] = useState<UserRole | "all">("all");
+  const [users,        setUsers]        = useState<ApiUser[]>([]);
+  const [search,       setSearch]       = useState("");
+  const [roleFilter,   setRoleFilter]   = useState<UserRole | "all">("all");
   const [statusFilter, setStatusFilter] = useState<UserStatus | "all">("all");
-  const [modal,      setModal]      = useState<"invite" | "edit" | null>(null);
-  const [editTarget, setEditTarget] = useState<User | null>(null);
-  const [openMenu,   setOpenMenu]   = useState<string | null>(null);
-  const [toast,      setToast]      = useState<{ msg: string; ok: boolean } | null>(null);
+  const [modal,        setModal]        = useState<"invite" | "edit" | null>(null);
+  const [editTarget,   setEditTarget]   = useState<ApiUser | null>(null);
+  const [openMenu,     setOpenMenu]     = useState<string | null>(null);
+  const [toast,        setToast]        = useState<{ msg: string; ok: boolean } | null>(null);
 
-  const orgId = session?.organizationId ?? "";
+  const orgId       = session?.organizationId ?? "";
   const isSuperAdmin = role === "SuperAdmin";
 
-  const load = useCallback(() => {
-    setUsers(isSuperAdmin ? getUsers() : getUsersByOrg(orgId));
+  const load = useCallback(async () => {
+    const result = await apiGetUsers(isSuperAdmin ? undefined : orgId);
+    setUsers(result);
   }, [isSuperAdmin, orgId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleToggleStatus = (u: User) => {
+  const handleToggleStatus = async (u: ApiUser) => {
     const next: UserStatus = u.status === "active" ? "inactive" : "active";
-    updateUser(u.id, { status: next });
-    addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"user_status_change", module:"Users", details:`${u.email} → ${next}` });
-    showToast(`${u.name} marked as ${next}.`);
-    load();
-    setOpenMenu(null);
+    try {
+      await apiUpdateUser(u.id, { status: next });
+      void addLog({ action:"user_status_change", module:"Users", details:`${u.email} → ${next}` });
+      showToast(`${u.name} marked as ${next}.`);
+      void load();
+      setOpenMenu(null);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Failed to update status.", false);
+    }
   };
 
-  const handleSuspend = (u: User) => {
-    updateUser(u.id, { status: "suspended" });
-    addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"user_status_change", module:"Users", details:`Suspended ${u.email}` });
-    showToast(`${u.name} suspended.`, false);
-    load(); setOpenMenu(null);
+  const handleSuspend = async (u: ApiUser) => {
+    try {
+      await apiUpdateUser(u.id, { status: "suspended" });
+      void addLog({ action:"user_status_change", module:"Users", details:`Suspended ${u.email}` });
+      showToast(`${u.name} suspended.`, false);
+      void load(); setOpenMenu(null);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Failed to suspend.", false);
+    }
   };
 
-  const handleDelete = (u: User) => {
+  const handleDelete = async (u: ApiUser) => {
     if (!confirm(`Delete user "${u.name}"? This cannot be undone.`)) return;
-    deleteUser(u.id);
-    addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"user_delete", module:"Users", details:`Deleted ${u.email}` });
-    showToast(`${u.name} deleted.`, false);
-    load(); setOpenMenu(null);
+    try {
+      await apiDeleteUser(u.id);
+      void addLog({ action:"user_delete", module:"Users", details:`Deleted ${u.email}` });
+      showToast(`${u.name} deleted.`, false);
+      void load(); setOpenMenu(null);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Failed to delete.", false);
+    }
   };
 
-  const handleRoleChange = (u: User, newRole: UserRole) => {
-    updateUser(u.id, { role: newRole });
-    addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"role_change", module:"Users", details:`${u.email}: ${u.role} → ${newRole}` });
-    showToast(`${u.name}'s role updated to ${ROLE_META[newRole].label}.`);
-    load(); setOpenMenu(null);
+  const handleRoleChange = async (u: ApiUser, newRole: UserRole) => {
+    try {
+      await apiUpdateUser(u.id, { role: newRole });
+      void addLog({ action:"role_change", module:"Users", details:`${u.email}: ${u.role} → ${newRole}` });
+      showToast(`${u.name}'s role updated to ${ROLE_META[newRole].label}.`);
+      void load(); setOpenMenu(null);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Failed to update role.", false);
+    }
   };
 
-  const handleResetPw = (u: User) => {
+  const handleResetPw = async (u: ApiUser) => {
     const pw = "TempPass@123";
-    resetUserPassword(u.id, pw);
-    addLog({ userId: session!.userId, userName: session!.name, email: session!.email, action:"password_reset", module:"Users", details:`Reset password for ${u.email}` });
-    showToast(`Password reset. Temp: ${pw}`);
-    setOpenMenu(null);
+    try {
+      await apiResetPassword(u.id, pw);
+      void addLog({ action:"password_reset", module:"Users", details:`Reset password for ${u.email}` });
+      showToast(`Password reset. Temp: ${pw}`);
+      setOpenMenu(null);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Failed to reset password.", false);
+    }
   };
 
   const filtered = users.filter(u =>
@@ -262,7 +288,7 @@ export default function UsersPage() {
         <UserModal
           mode={modal} target={editTarget ?? undefined} orgId={orgId}
           onClose={() => { setModal(null); setEditTarget(null); }}
-          onSuccess={() => { load(); reloadUser(); }}
+          onSuccess={() => { void load(); void reloadUser(); }}
         />
       )}
 
@@ -273,7 +299,7 @@ export default function UsersPage() {
           <p className="text-xs text-white/40 mt-0.5">{users.length} members · {isSuperAdmin ? "All organizations" : "Your organization"}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={load} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all">
+          <button onClick={() => void load()} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all">
             <RefreshCw className="w-4 h-4" />
           </button>
           <button onClick={() => { setModal("invite"); setEditTarget(null); }}
@@ -342,7 +368,6 @@ export default function UsersPage() {
               ) : filtered.map((u, i) => (
                 <motion.tr key={u.id} initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ delay: i*0.03 }}
                   className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors group relative">
-                  {/* User */}
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500/60 to-violet-500/60 flex items-center justify-center text-white font-bold text-xs shrink-0">
@@ -354,10 +379,9 @@ export default function UsersPage() {
                       </div>
                     </div>
                   </td>
-                  {/* Role */}
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
-                      <RoleBadge role={u.role} />
+                      <RoleBadge role={u.role as UserRole} />
                       {role === "SuperAdmin" && (
                         <div className="relative">
                           <button onClick={() => setOpenMenu(openMenu === `role-${u.id}` ? null : `role-${u.id}`)}
@@ -367,7 +391,7 @@ export default function UsersPage() {
                           {openMenu === `role-${u.id}` && (
                             <div className="absolute left-0 top-full mt-1 w-36 bg-[#0d1120] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
                               {ALL_ROLES.map(r => (
-                                <button key={r} onClick={() => handleRoleChange(u, r)}
+                                <button key={r} onClick={() => void handleRoleChange(u, r)}
                                   className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 transition-colors ${u.role === r ? "text-brand-400 font-bold" : "text-white/60"}`}>
                                   {ROLE_META[r].label}
                                 </button>
@@ -378,48 +402,36 @@ export default function UsersPage() {
                       )}
                     </div>
                   </td>
-                  {/* Status */}
                   <td className="px-5 py-3.5"><StatusBadge status={u.status} /></td>
-                  {/* Org */}
-                  <td className="px-5 py-3.5 text-xs text-white/40">{u.organizationId}</td>
-                  {/* Last login */}
+                  <td className="px-5 py-3.5 text-xs text-white/40">{u.organization?.name ?? u.organizationId}</td>
                   <td className="px-5 py-3.5 text-xs text-white/40">{fmtDate(u.lastLogin)}</td>
-                  {/* Joined */}
                   <td className="px-5 py-3.5 text-xs text-white/40">{fmtDate(u.createdAt)}</td>
-                  {/* Actions */}
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-1">
-                      {/* Edit */}
-                      <button onClick={() => { setEditTarget(u); setModal("edit"); }}
-                        title="Edit User"
+                      <button onClick={() => { setEditTarget(u); setModal("edit"); }} title="Edit User"
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-brand-400 hover:bg-brand-500/10 transition-all">
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
-                      {/* Toggle active/inactive */}
-                      <button onClick={() => handleToggleStatus(u)}
-                        title={u.status === "active" ? "Deactivate" : "Activate"}
+                      <button onClick={() => void handleToggleStatus(u)} title={u.status === "active" ? "Deactivate" : "Activate"}
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all">
                         {u.status === "active" ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
                       </button>
-                      {/* Reset password */}
-                      <button onClick={() => handleResetPw(u)}
-                        title="Reset Password"
+                      <button onClick={() => void handleResetPw(u)} title="Reset Password"
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-amber-400 hover:bg-amber-500/10 transition-all">
                         <Key className="w-3.5 h-3.5" />
                       </button>
-                      {/* More: suspend / delete */}
                       <div className="relative">
                         <button onClick={() => setOpenMenu(openMenu === u.id ? null : u.id)}
                           className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-all">
-                          <MoreVertical className="w-3.5 h-3.5" />
+                          <Crown className="w-3.5 h-3.5" />
                         </button>
                         {openMenu === u.id && (
                           <div className="absolute right-0 top-full mt-1 w-40 bg-[#0d1120] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
-                            <button onClick={() => handleSuspend(u)}
+                            <button onClick={() => void handleSuspend(u)}
                               className="w-full text-left px-3 py-2.5 text-xs text-orange-400 hover:bg-orange-500/10 transition-colors flex items-center gap-2">
                               <Activity className="w-3.5 h-3.5" /> Suspend
                             </button>
-                            <button onClick={() => handleDelete(u)}
+                            <button onClick={() => void handleDelete(u)}
                               className="w-full text-left px-3 py-2.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2">
                               <Trash2 className="w-3.5 h-3.5" /> Delete User
                             </button>

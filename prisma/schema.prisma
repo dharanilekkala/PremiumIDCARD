@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Organization {
+  id         String     @id @default(cuid())
+  name       String
+  orgType    String
+  status     String     @default("active")
+  adminEmail String
+  adminName  String
+  phone      String?
+  address    String?
+  createdAt  DateTime   @default(now())
+  users      User[]
+  auditLogs  AuditLog[]
+}
+
+model User {
+  id             String       @id @default(cuid())
+  name           String
+  email          String       @unique
+  passwordHash   String
+  role           String       @default("Viewer")
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  status         String       @default("active")
+  lastLogin      DateTime?
+  createdAt      DateTime     @default(now())
+  failedAttempts Int          @default(0)
+  lockedUntil    DateTime?
+}
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  userId         String
+  userName       String
+  email          String
+  action         String
+  module         String
+  details        String
+  ipAddress      String       @default("unknown")
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  timestamp      DateTime     @default(now())
+}

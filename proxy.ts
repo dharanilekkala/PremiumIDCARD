@@ -2,17 +2,16 @@
  * proxy.ts — Next.js 16 Proxy (route protection + RBAC)
  * ─────────────────────────────────────────────────────────────────────────────
  * Protects all /dashboard routes. Redirects unauthenticated users to /login.
- * Also enforces role-based access for sensitive admin routes.
+ * Enforces role-based access for sensitive admin routes.
+ * Uses HMAC-SHA256 JWT via `jose` (Edge-compatible).
  */
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 
-const COOKIE      = "idforge_token";
-const PUBLIC_PFXS = ["/login", "/signup", "/forgot-password", "/reset-password"];
+const SESSION_COOKIE = "idforge_session";
+const PUBLIC_PFXS    = ["/login", "/signup", "/forgot-password", "/reset-password"];
 
-// Only SuperAdmin can access these
 const SUPERADMIN_ONLY = ["/dashboard/admin", "/dashboard/organizations"];
-
-// Admin and above required
 const ADMIN_PLUS = [
   "/dashboard/users",
   "/dashboard/analytics",
@@ -20,20 +19,24 @@ const ADMIN_PLUS = [
   "/dashboard/audit-logs",
 ];
 
-interface MinSession { role: string; exp: number; }
+interface MinSession { role: string; exp: number; userId: string; }
 
-function parseToken(raw: string): MinSession | null {
+async function verifyJwt(token: string): Promise<MinSession | null> {
   try {
-    return JSON.parse(atob(decodeURIComponent(raw))) as MinSession;
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return null;
+    const key = new TextEncoder().encode(secret);
+    const { payload } = await jwtVerify(token, key);
+    return payload as unknown as MinSession;
   } catch {
     return null;
   }
 }
 
-export function proxy(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Always allow: landing page, public auth pages, static assets, API routes, signup
+  // Always allow: landing page, public auth pages, static assets, API routes
   if (
     pathname === "/" ||
     PUBLIC_PFXS.some(p => pathname.startsWith(p)) ||
@@ -41,24 +44,23 @@ export function proxy(req: NextRequest) {
     pathname.startsWith("/api/") ||
     pathname.startsWith("/models/") ||
     pathname.startsWith("/pricing") ||
-    pathname.includes(".")               // static files (svg, ico, etc.)
+    pathname.includes(".")
   ) {
     return NextResponse.next();
   }
 
   // Require auth for all /dashboard/* routes
-  const raw = req.cookies.get(COOKIE)?.value;
-  if (!raw) {
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  if (!token) {
     const url = new URL("/login", req.url);
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
-  // Validate token (base64 JSON with exp field)
-  const session = parseToken(raw);
-  if (!session || session.exp < Math.floor(Date.now() / 1000)) {
+  const session = await verifyJwt(token);
+  if (!session) {
     const res = NextResponse.redirect(new URL("/login", req.url));
-    res.cookies.delete(COOKIE);
+    res.cookies.set(SESSION_COOKIE, "", { maxAge: 0, path: "/" });
     return res;
   }
 

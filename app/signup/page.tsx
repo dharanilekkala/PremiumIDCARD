@@ -9,8 +9,8 @@ import {
   GraduationCap, Stethoscope, Zap, Calendar, Settings,
   ChevronRight,
 } from "lucide-react";
-import { registerOrganization, type OrgCategory } from "@/lib/auth";
-import { addLog } from "@/lib/auditLog";
+import { type OrgCategory } from "@/lib/auth";
+import { apiSignup } from "@/lib/api";
 
 const ORG_OPTIONS: { value: OrgCategory; label: string; desc: string; Icon: React.ElementType; color: string }[] = [
   { value: "school",     label: "School",     desc: "K-12 student IDs",            Icon: GraduationCap, color: "from-brand-500 to-violet-500" },
@@ -69,29 +69,17 @@ export default function SignupPage() {
     setError(null);
     setLoading(true);
 
-    await new Promise(r => setTimeout(r, 600));
-
-    const result = registerOrganization({
-      orgName: orgName.trim(), orgType,
-      adminName: name.trim(), adminEmail: email.trim(),
-      adminPassword: password, phone: phone.trim() || undefined,
-    });
-
-    if (!result.ok) {
-      setError(result.error ?? "Registration failed. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    if (result.session) {
-      addLog({
-        userId: result.session.userId, userName: result.session.name,
-        email: result.session.email, action: "login",
-        module: "Auth", details: `Organization registered: ${orgName}`,
+    try {
+      await apiSignup({
+        orgName: orgName.trim(), orgType,
+        adminName: name.trim(), adminEmail: email.trim(),
+        password, phone: phone.trim() || undefined,
       });
+      router.replace("/dashboard");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
+      setLoading(false);
     }
-
-    router.replace("/dashboard");
   }
 
   return (

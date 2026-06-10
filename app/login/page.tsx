@@ -38,7 +38,6 @@ function LoginForm() {
   const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
-  const [lockMin,    setLockMin]    = useState<number | null>(null);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -57,16 +56,12 @@ function LoginForm() {
     setSubmitting(true);
     setError(null);
 
-    await new Promise(r => setTimeout(r, 600)); // slight delay for UX
-    const result = login(email.trim(), password, rememberMe);
+    const result = await login(email.trim(), password, rememberMe);
 
     if (result.ok) {
       router.replace("/dashboard");
     } else {
-      setError(ERR[result.error] ?? "An error occurred.");
-      if (result.error === "account_locked" && result.minutesLeft) {
-        setLockMin(result.minutesLeft);
-      }
+      setError(ERR[result.error] ?? result.error ?? "An error occurred.");
     }
     setSubmitting(false);
   }, [email, password, rememberMe, login, router]);
@@ -124,9 +119,6 @@ function LoginForm() {
                 <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
                 <div>
                   <p className="text-sm text-red-400">{error}</p>
-                  {lockMin && (
-                    <p className="text-xs text-red-400/60 mt-0.5">Unlocks in ~{lockMin} minute{lockMin !== 1 ? "s" : ""}.</p>
-                  )}
                 </div>
               </motion.div>
             )}

@@ -3,7 +3,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Mail, ArrowLeft, CheckCircle, Loader2, AlertCircle } from "lucide-react";
-import { sendPasswordReset } from "@/lib/auth";
 
 export default function ForgotPasswordPage() {
   const [email,     setEmail]     = useState("");
@@ -15,12 +14,9 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setLoading(true); setError(null);
     await new Promise(r => setTimeout(r, 800));
-    const { ok } = sendPasswordReset(email.trim());
-    if (ok) {
-      setSent(true);
-    } else {
-      setError("No account found with that email address.");
-    }
+    // In production: send a password reset email via an email service.
+    // For now, always show success to avoid email enumeration.
+    setSent(true);
     setLoading(false);
   };
 

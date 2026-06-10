@@ -1,12 +1,12 @@
 "use client";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield, Search, Download, RefreshCw, Filter, X, Clock,
-  CheckCircle, AlertCircle, User, Trash2, ChevronLeft, ChevronRight,
+  CheckCircle, AlertCircle, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getLogs, clearLogs, ACTION_META, type AuditEntry } from "@/lib/auditLog";
+import { getLogs, ACTION_META, type AuditEntry } from "@/lib/auditLog";
 
 const PAGE_SIZE = 25;
 
@@ -42,26 +42,20 @@ export default function AuditLogsPage() {
   const [page,        setPage]        = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [toast,       setToast]       = useState<{ msg: string; ok: boolean } | null>(null);
-  const prevEntryCount = useRef(0);
 
-  const load = useCallback(() => {
-    const all = getLogs().reverse(); // newest first
+  const load = useCallback(async () => {
+    const all = await getLogs();
+    // API returns newest-first already (orderBy timestamp desc)
     setLogs(all);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleClear = () => {
-    if (!confirm("Clear ALL audit logs? This cannot be undone.")) return;
-    clearLogs();
-    load();
-    showToast("Audit logs cleared.", false);
-  };
 
   const handleExport = () => {
     const header = ["ID", "Timestamp", "User", "Email", "Action", "Module", "Details", "IP"].join(",");
@@ -127,7 +121,7 @@ export default function AuditLogsPage() {
           <p className="text-xs text-white/40 mt-0.5">{logs.length} total events · immutable trail</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={load}
+          <button onClick={() => void load()}
             className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all">
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -135,12 +129,6 @@ export default function AuditLogsPage() {
             className="flex items-center gap-2 h-9 px-4 rounded-xl bg-white/5 border border-white/10 text-white/60 text-sm font-medium hover:text-white hover:bg-white/10 transition-all">
             <Download className="w-4 h-4" /> Export CSV
           </button>
-          {role === "SuperAdmin" && (
-            <button onClick={handleClear}
-              className="flex items-center gap-2 h-9 px-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium hover:bg-red-500/20 transition-all">
-              <Trash2 className="w-4 h-4" /> Clear Logs
-            </button>
-          )}
         </div>
       </div>
 
