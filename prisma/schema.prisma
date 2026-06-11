@@ -1,13 +1,16 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // rhel-openssl-3.0.x is required for Vercel (Amazon Linux 2023)
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
 model Organization {
-  id         String     @id @default(cuid())
+  id         String     @id @default(auto()) @map("_id") @db.ObjectId
   name       String
   orgType    String
   status     String     @default("active")
@@ -21,12 +24,12 @@ model Organization {
 }
 
 model User {
-  id             String       @id @default(cuid())
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
   name           String
   email          String       @unique
   passwordHash   String
   role           String       @default("Viewer")
-  organizationId String
+  organizationId String       @db.ObjectId
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   status         String       @default("active")
   lastLogin      DateTime?
@@ -36,15 +39,15 @@ model User {
 }
 
 model AuditLog {
-  id             String       @id @default(cuid())
-  userId         String
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String       @db.ObjectId
   userName       String
   email          String
   action         String
   module         String
   details        String
   ipAddress      String       @default("unknown")
-  organizationId String
+  organizationId String       @db.ObjectId
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   timestamp      DateTime     @default(now())
 }

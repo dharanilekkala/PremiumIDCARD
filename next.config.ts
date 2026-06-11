@@ -4,9 +4,9 @@ const nextConfig: NextConfig = {
   // Next.js 16 default bundler.
   turbopack: {},
 
-  // ws and @neondatabase/serverless use Node.js net/tls modules — must not be
-  // bundled by Next.js; they need native require() in the serverless runtime.
-  serverExternalPackages: ["ws", "@neondatabase/serverless", "@prisma/adapter-neon"],
+  // Prisma 5 binary engine uses native Node.js modules — opt it out of
+  // server-component bundling so it uses native require() at runtime.
+  serverExternalPackages: ["@prisma/client", "prisma"],
 };
 
 export default nextConfig;

@@ -1,23 +1,16 @@
 /**
- * prisma/seed.ts — Seeds the database with demo data.
+ * prisma/seed.ts — Seeds MongoDB Atlas with demo data.
  * Run with: npx prisma db seed
  *
  * Strategy:
- *  - Organizations and Users: upsert by unique email fields (safe to re-run)
+ *  - Organizations: upsert by adminEmail (safe to re-run)
+ *  - Users: upsert by email (safe to re-run)
  *  - AuditLogs: created once on a fresh DB (skipped if logs already exist)
  */
 import { PrismaClient } from "@prisma/client";
-import { PrismaNeon } from "@prisma/adapter-neon";
-import { neonConfig } from "@neondatabase/serverless";
 import bcrypt from "bcryptjs";
-import ws from "ws";
 
-neonConfig.webSocketConstructor = ws;
-
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) throw new Error("DATABASE_URL env var is not set");
-const adapter = new PrismaNeon({ connectionString });
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient();
 
 async function main() {
   console.log("Seeding database…");
@@ -77,7 +70,6 @@ async function main() {
   });
 
   // ── Audit Logs ───────────────────────────────────────────────────────────────
-  // Only seed logs on a fresh database; skip if any already exist.
   const existingLogs = await prisma.auditLog.count();
   if (existingLogs === 0) {
     await prisma.auditLog.createMany({
