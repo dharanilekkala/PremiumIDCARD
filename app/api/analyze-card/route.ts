@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Windows dev: Node.js built-in CA store cannot verify Anthropic's cert chain.
-if (process.env.NODE_ENV !== "production") {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-}
+// Vercel: Claude Vision API can take up to 35s — raise the function timeout ceiling.
+// Vercel Hobby = 10s max (AI analysis will degrade gracefully to manual mode).
+// Vercel Pro/Enterprise can be raised up to 300s.
+export const maxDuration = 60;
 
 /* ─── Prompt ────────────────────────────────────────────────────────────────── */
 const PROMPT = `You are a PRECISION coordinate extractor for an ID card template replication system.

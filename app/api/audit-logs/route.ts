@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const limitParam = url.searchParams.get("limit");
   const orgId = url.searchParams.get("organizationId");
 
-  const take = limitParam ? parseInt(limitParam, 10) : 500;
+  const take = Math.max(1, Math.min(1000, Number(limitParam) || 500));
 
   const where =
     session.role === "SuperAdmin"

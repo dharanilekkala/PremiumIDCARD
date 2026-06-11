@@ -16,6 +16,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "All required fields must be provided" }, { status: 400 });
     }
 
+    const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRx.test(adminEmail)) {
+      return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
+    }
+    if (password.length < 8) {
+      return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+    }
+    if (orgName.trim().length > 200 || adminName.trim().length > 200) {
+      return NextResponse.json({ error: "Name fields must be 200 characters or fewer" }, { status: 400 });
+    }
+
     // Check if email already exists
     const existing = await prisma.user.findUnique({
       where: { email: adminEmail.toLowerCase().trim() },

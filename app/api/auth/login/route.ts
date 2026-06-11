@@ -15,6 +15,12 @@ export async function POST(req: NextRequest) {
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
+    if (typeof email !== "string" || typeof password !== "string") {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
+    if (email.length > 320 || password.length > 1024) {
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    }
 
     // Find user
     const user = await prisma.user.findUnique({

@@ -3,13 +3,17 @@
  * Run with: npx prisma db seed
  */
 import { PrismaClient } from "@prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaNeon } from "@prisma/adapter-neon";
+import { neonConfig } from "@neondatabase/serverless";
 import bcrypt from "bcryptjs";
-import path from "path";
+import ws from "ws";
 
-const dbPath = process.env.DATABASE_URL?.replace("file:", "") ?? "./prisma/dev.db";
-const adapter = new PrismaBetterSqlite3({ url: path.resolve(dbPath) });
-const prisma = new PrismaClient({ adapter } as any);
+neonConfig.webSocketConstructor = ws;
+
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL env var is not set");
+const adapter = new PrismaNeon({ connectionString });
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log("Seeding database...");
@@ -66,7 +70,7 @@ async function main() {
     { id:"a3",  userId:"u3", userName:"Ravi Operator", email:"operator@idforge.ai",   action:"card_generate",   module:"Manual",     details:"Generated card for Amit Kumar",      org: org1.id, ts: "2024-06-01T11:30:00Z" },
     { id:"a4",  userId:"u1", userName:"Super Admin",   email:"superadmin@idforge.ai", action:"user_create",     module:"Users",      details:"Created user operator@idforge.ai",  org: org1.id, ts: "2024-06-02T08:45:00Z" },
     { id:"a5",  userId:"u2", userName:"Admin User",    email:"admin@idforge.ai",      action:"template_upload", module:"Templates",  details:"Uploaded School ID template",        org: org1.id, ts: "2024-06-02T09:20:00Z" },
-    { id:"a6",  userId:"u1", userName:"Super Admin",   email:"superadmin@idforge.ai", action:"role_change",     module:"Users",      details:"Changed viewer@idforge.ai → Viewer", org: org1.id, ts: "2024-06-03T14:00:00Z" },
+    { id:"a6",  userId:"u1", userName:"Super Admin",   email:"superadmin@idforge.ai", action:"role_change",     module:"Users",      details:"Changed viewer@idforge.ai to Viewer", org: org1.id, ts: "2024-06-03T14:00:00Z" },
     { id:"a7",  userId:"u4", userName:"Priya Viewer",  email:"viewer@idforge.ai",     action:"download",        module:"Cards",      details:"Downloaded 12 ID cards (ZIP)",       org: org1.id, ts: "2024-06-04T16:30:00Z" },
     { id:"a8",  userId:"u3", userName:"Ravi Operator", email:"operator@idforge.ai",   action:"login_failed",    module:"Auth",       details:"Invalid password (attempt 1/5)",     org: org1.id, ts: "2024-06-05T08:00:00Z" },
     { id:"a9",  userId:"u2", userName:"Admin User",    email:"admin@idforge.ai",      action:"bulk_generate",   module:"AI Builder", details:"Generated 555 cards",               org: org1.id, ts: "2024-06-05T11:00:00Z" },

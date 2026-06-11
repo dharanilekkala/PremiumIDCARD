@@ -1,10 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Required in Next.js 16: Turbopack is the default bundler.
-  // pdfjs-dist v6 is browser-only in this project (worker URL approach),
-  // so no canvas alias is needed under Turbopack.
   turbopack: {},
+
+  // ws and @neondatabase/serverless use Node.js net/tls modules — must not be
+  // bundled by Next.js; they need native require() in the serverless runtime.
+  serverExternalPackages: ["ws", "@neondatabase/serverless", "@prisma/adapter-neon"],
 };
 
 export default nextConfig;

@@ -8,7 +8,9 @@ import {
 } from "lucide-react";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
-// ── Demo credentials ──────────────────────────────────────────────────────────
+// Demo quick-fill panel — only shown when NEXT_PUBLIC_SHOW_DEMO_LOGIN=true.
+// Never set this in production; leave it unset or set to anything other than "true".
+const SHOW_DEMO = process.env.NEXT_PUBLIC_SHOW_DEMO_LOGIN === "true";
 
 const DEMOS = [
   { role: "SuperAdmin", email: "superadmin@idforge.ai", pw: "Admin@1234", color: "from-amber-500   to-orange-500"  },
@@ -179,30 +181,32 @@ function LoginForm() {
           </form>
         </div>
 
-        {/* Demo credentials */}
-        <div className="mt-6">
-          <p className="text-xs text-white/30 text-center mb-3 flex items-center gap-2 justify-center">
-            <RefreshCw className="w-3 h-3" /> Quick sign-in with demo accounts
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {DEMOS.map(d => (
-              <button
-                key={d.role} onClick={() => fill(d)}
-                className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.07] hover:bg-white/[0.08] hover:border-white/15 transition-all text-left group"
-              >
-                <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${d.color} flex items-center justify-center shrink-0`}>
-                  <span className="text-[9px] font-black text-white">{d.role.slice(0,2).toUpperCase()}</span>
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-white/70 truncate">{d.role}</div>
-                  <div className="text-[10px] text-white/30 truncate">{d.email.split("@")[0]}</div>
-                </div>
-                <ChevronRight className="w-3 h-3 text-white/20 group-hover:text-white/40 ml-auto shrink-0" />
-              </button>
-            ))}
+        {/* Demo quick-fill — only rendered when NEXT_PUBLIC_SHOW_DEMO_LOGIN=true */}
+        {SHOW_DEMO && (
+          <div className="mt-6">
+            <p className="text-xs text-white/30 text-center mb-3 flex items-center gap-2 justify-center">
+              <RefreshCw className="w-3 h-3" /> Quick sign-in with demo accounts
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {DEMOS.map(d => (
+                <button
+                  key={d.role} onClick={() => fill(d)}
+                  className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.07] hover:bg-white/[0.08] hover:border-white/15 transition-all text-left group"
+                >
+                  <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${d.color} flex items-center justify-center shrink-0`}>
+                    <span className="text-[9px] font-black text-white">{d.role.slice(0,2).toUpperCase()}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-white/70 truncate">{d.role}</div>
+                    <div className="text-[10px] text-white/30 truncate">{d.email.split("@")[0]}</div>
+                  </div>
+                  <ChevronRight className="w-3 h-3 text-white/20 group-hover:text-white/40 ml-auto shrink-0" />
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-white/20 text-center mt-3">All demo accounts use password: Admin@1234</p>
           </div>
-          <p className="text-[10px] text-white/20 text-center mt-3">All demo accounts use password: Admin@1234</p>
-        </div>
+        )}
       </motion.div>
     </div>
   );
