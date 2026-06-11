@@ -4,9 +4,9 @@ const nextConfig: NextConfig = {
   // Next.js 16 default bundler.
   turbopack: {},
 
-  // Prisma 5 binary engine uses native Node.js modules — opt it out of
-  // server-component bundling so it uses native require() at runtime.
-  serverExternalPackages: ["@prisma/client", "prisma"],
+  // Native MongoDB driver uses Node.js TLS (system cert store) — keep it
+  // out of the server-component bundle so native require() is used at runtime.
+  serverExternalPackages: ["mongodb"],
 };
 
 export default nextConfig;

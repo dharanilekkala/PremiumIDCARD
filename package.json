@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node --use-system-ca node_modules/next/dist/bin/next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node --use-system-ca node_modules/next/dist/bin/next start",
     "lint": "eslint"
   },
   "prisma": {
@@ -35,6 +35,7 @@
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1",
     "lucide-react": "^1.17.0",
+    "mongodb": "^7.3.0",
     "next": "16.2.7",
     "pdfjs-dist": "^6.0.227",
     "qrcode.react": "^4.2.0",
