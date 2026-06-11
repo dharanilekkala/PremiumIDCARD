@@ -11,7 +11,7 @@ model Organization {
   name       String
   orgType    String
   status     String     @default("active")
-  adminEmail String
+  adminEmail String     @unique
   adminName  String
   phone      String?
   address    String?
