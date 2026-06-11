@@ -1,13 +1,8 @@
 {
-  "buildCommand": "npx prisma generate && npm run build",
+  "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "framework": "nextjs",
   "regions": ["bom1"],
-  "env": {
-    "DATABASE_URL": "@database-url",
-    "JWT_SECRET": "@jwt-secret",
-    "ANTHROPIC_API_KEY": "@anthropic-api-key"
-  },
   "headers": [
     {
       "source": "/(.*)",
