@@ -1,6 +1,6 @@
 "use client";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Search, Sparkles, LogOut, User, Shield } from "lucide-react";
+import { Bell, Search, Sparkles, LogOut, User, Shield, Menu } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getUserInitials, ROLE_META } from "@/lib/auth";
@@ -16,11 +16,18 @@ const PAGE_NAMES: Record<string, string> = {
   "/dashboard/verification":   "Verification Center",
   "/dashboard/analytics":      "Analytics",
   "/dashboard/users":          "User Management",
-  "/dashboard/security":       "Security & Audit Logs",
+  "/dashboard/audit-logs":     "Audit Logs",
+  "/dashboard/organizations":  "Organizations",
+  "/dashboard/security":       "Security",
   "/dashboard/settings":       "Settings",
+  "/dashboard/admin":          "Admin Panel",
 };
 
-export default function TopBar() {
+interface TopBarProps {
+  onMenuToggle: () => void;
+}
+
+export default function TopBar({ onMenuToggle }: TopBarProps) {
   const pathname             = usePathname();
   const router               = useRouter();
   const { session, logout, role } = useAuth();
@@ -32,7 +39,6 @@ export default function TopBar() {
   const initials  = session ? getUserInitials(session.name) : "?";
   const roleMeta  = role ? ROLE_META[role] : null;
 
-  // Close menu on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
@@ -48,28 +54,42 @@ export default function TopBar() {
   };
 
   return (
-    <header className="h-16 border-b border-white/[0.06] bg-[#0a0d18]/80 backdrop-blur-xl flex items-center justify-between px-6 shrink-0">
-      <div className="flex items-center gap-3">
-        <div>
-          <h1 className="text-base font-bold text-white">{pageName}</h1>
-          <p className="text-[11px] text-white/30">IDForge AI Platform</p>
+    <header className="h-14 sm:h-16 border-b border-white/[0.06] bg-[#0a0d18]/80 backdrop-blur-xl flex items-center justify-between px-4 sm:px-6 shrink-0 gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        {/* Hamburger — mobile only */}
+        <button
+          onClick={onMenuToggle}
+          className="lg:hidden w-9 h-9 rounded-xl bg-white/5 border border-white/[0.06] flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all shrink-0"
+          aria-label="Open navigation"
+        >
+          <Menu className="w-4 h-4" />
+        </button>
+
+        <div className="min-w-0">
+          <h1 className="text-sm sm:text-base font-bold text-white truncate">{pageName}</h1>
+          <p className="text-[10px] sm:text-[11px] text-white/30 hidden sm:block">IDForge AI Platform</p>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         {/* Search */}
         <div className="relative">
           {searchOpen ? (
-            <input autoFocus onBlur={() => setSearchOpen(false)}
-              className="w-48 h-9 px-3 pl-9 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/30 outline-none focus:border-brand-500/50"
-              placeholder="Search…" />
+            <input
+              autoFocus
+              onBlur={() => setSearchOpen(false)}
+              className="w-32 sm:w-48 h-9 px-3 pl-9 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/30 outline-none focus:border-brand-500/50"
+              placeholder="Search…"
+            />
           ) : (
-            <button onClick={() => setSearchOpen(true)}
-              className="w-9 h-9 rounded-xl bg-white/5 border border-white/[0.06] flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="w-9 h-9 rounded-xl bg-white/5 border border-white/[0.06] flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all"
+            >
               <Search className="w-4 h-4" />
             </button>
           )}
-          {searchOpen && <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />}
+          {searchOpen && <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />}
         </div>
 
         {/* Notification */}
@@ -78,29 +98,31 @@ export default function TopBar() {
           <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-red-500" />
         </button>
 
-        {/* Quick Generate (visible for roles with permission) */}
+        {/* Quick Generate — hidden on very small screens */}
         {role && ["SuperAdmin","Admin","Operator"].includes(role) && (
-          <Link href="/dashboard/ai-builder">
-            <button className="flex items-center gap-2 h-9 px-4 rounded-xl bg-gradient-to-r from-brand-500 to-violet-500 text-white text-xs font-semibold hover:opacity-90 transition-opacity shadow-glow-sm">
+          <Link href="/dashboard/ai-builder" className="hidden sm:block">
+            <button className="flex items-center gap-2 h-9 px-3 sm:px-4 rounded-xl bg-gradient-to-r from-brand-500 to-violet-500 text-white text-xs font-semibold hover:opacity-90 transition-opacity shadow-glow-sm">
               <Sparkles className="w-3.5 h-3.5" />
-              Quick Generate
+              <span className="hidden md:inline">Quick Generate</span>
+              <span className="md:hidden">Generate</span>
             </button>
           </Link>
         )}
 
         {/* Avatar + dropdown */}
         <div className="relative" ref={menuRef}>
-          <button onClick={() => setMenuOpen(!menuOpen)}
-            className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center text-white font-bold text-xs cursor-pointer hover:opacity-90 transition-opacity ring-2 ring-transparent hover:ring-brand-500/30">
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center text-white font-bold text-xs cursor-pointer hover:opacity-90 transition-opacity ring-2 ring-transparent hover:ring-brand-500/30"
+          >
             {initials}
           </button>
 
           {menuOpen && (
             <div className="absolute right-0 top-full mt-2 w-64 bg-[#0d1120] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden">
-              {/* User info */}
               <div className="p-4 border-b border-white/[0.06]">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center text-white font-bold text-sm">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
                     {initials}
                   </div>
                   <div className="min-w-0">
@@ -118,25 +140,26 @@ export default function TopBar() {
                 </div>
               </div>
 
-              {/* Menu items */}
               <div className="p-2">
                 <Link href="/dashboard/settings" onClick={() => setMenuOpen(false)}>
                   <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all text-left">
-                    <User className="w-4 h-4" /> Profile & Settings
+                    <User className="w-4 h-4" /> Profile &amp; Settings
                   </button>
                 </Link>
                 {role && ["SuperAdmin","Admin"].includes(role) && (
                   <Link href="/dashboard/security" onClick={() => setMenuOpen(false)}>
                     <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all text-left">
-                      <Shield className="w-4 h-4" /> Security & Audit Logs
+                      <Shield className="w-4 h-4" /> Security &amp; Audit Logs
                     </button>
                   </Link>
                 )}
               </div>
 
               <div className="p-2 border-t border-white/[0.06]">
-                <button onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-red-400 hover:bg-red-500/10 transition-all">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-red-400 hover:bg-red-500/10 transition-all"
+                >
                   <LogOut className="w-4 h-4" /> Sign Out
                 </button>
               </div>

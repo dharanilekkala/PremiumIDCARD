@@ -100,7 +100,7 @@ function LoginForm() {
         </div>
 
         {/* Card */}
-        <div className="bg-[#0d1120] border border-white/[0.08] rounded-2xl p-8 shadow-2xl">
+        <div className="bg-[#0d1120] border border-white/[0.08] rounded-2xl p-6 sm:p-8 shadow-2xl">
           <h2 className="text-lg font-bold text-white mb-1">Sign in to your account</h2>
           <p className="text-sm text-white/40 mb-6">
             Enter your credentials to access the dashboard.{" "}
