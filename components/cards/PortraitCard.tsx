@@ -18,6 +18,7 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
   const detailRows: { label: string; value: string; wrap?: boolean }[] = ([
     v("idNumber")   ? { label: idLabel,      value: v("idNumber") }              : null,
     v("class")      ? { label: "Class",       value: v("class") }                : null,
+    v("fatherName") ? { label: "Father Name", value: v("fatherName") }          : null,
     v("bloodGroup") ? { label: "Blood Group", value: v("bloodGroup") }           : null,
     v("phone")      ? { label: "Phone",       value: v("phone") }                : null,
     v("address")    ? { label: "Address",     value: v("address"), wrap: true }  : null,

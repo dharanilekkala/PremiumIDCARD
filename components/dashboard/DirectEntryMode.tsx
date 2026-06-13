@@ -36,6 +36,7 @@ const FIELDS: Record<OrgType, FieldDef[]> = {
     { key: "idNumber",     label: "Roll / ID Number",   type: "text",  placeholder: "e.g. STU-2024-001",           required: true,  icon: Hash          },
     { key: "organization", label: "School / College",   type: "text",  placeholder: "e.g. Delhi Public School",    required: true,  icon: GraduationCap },
     { key: "class",        label: "Class & Section",    type: "text",  placeholder: "e.g. 10-A",                   required: false, icon: Layers        },
+    { key: "fatherName",   label: "Father's Name",      type: "text",  placeholder: "e.g. Rajesh Sharma",          required: false, icon: User          },
     { key: "dob",          label: "Date of Birth",      type: "date",  placeholder: "",                             required: false, icon: Calendar      },
     { key: "bloodGroup",   label: "Blood Group",        type: "text",  placeholder: "e.g. B+",                     required: false, icon: Droplets      },
     { key: "phone",        label: "Parent Phone",       type: "tel",   placeholder: "e.g. 9876543210",             required: false, icon: Phone         },
@@ -205,8 +206,6 @@ async function renderCardToCanvas(
   const L_PHOTO_W   = Math.round(W * 0.30);         // 144 (30% of 480)
   const L_DETAILS_X = L_PHOTO_W + 4;
   const L_DETAILS_W = W - L_DETAILS_X - PAD;
-  const L_GRID_COL  = Math.floor((L_DETAILS_W - 18) / 2);
-
   const HEADER_H = isLandscape ? L_HEADER_H : P_HEADER_H;
   const FOOTER_H = isLandscape ? L_FOOTER_H : P_FOOTER_H;
 
@@ -225,21 +224,23 @@ async function renderCardToCanvas(
   const pDetailRows: { label: string; value: string }[] = [
     v("idNumber")    ? { label: ID_LABEL[orgType], value: v("idNumber") }    : null,
     v("class")       ? { label: "Class",           value: v("class") }       : null,
+    v("fatherName")  ? { label: "Father Name",     value: v("fatherName") }  : null,
     v("bloodGroup")  ? { label: "Blood Group",     value: v("bloodGroup") }  : null,
-    v("phone")       ? { label: "Phone",            value: v("phone") }       : null,
-    v("address")     ? { label: "Address",          value: v("address") }     : null,
-    v("department")  ? { label: "Department",       value: v("department") }  : null,
-    v("dob")         ? { label: "DOB",              value: v("dob") }         : null,
+    v("phone")       ? { label: "Phone",           value: v("phone") }       : null,
+    v("address")     ? { label: "Address",         value: v("address") }     : null,
+    v("department")  ? { label: "Department",      value: v("department") }  : null,
+    v("dob")         ? { label: "DOB",             value: v("dob") }         : null,
   ].filter(Boolean) as { label: string; value: string }[];
 
-  const lgridFields: { label: string; value: string; accent?: boolean }[] = [
-    v("idNumber")   ? { label: ID_LABEL[orgType], value: v("idNumber"), accent: true } : null,
-    v("class")      ? { label: "Class",           value: v("class") }                  : null,
-    v("department") ? { label: "Dept.",            value: v("department") }             : null,
-    v("dob")        ? { label: "DOB",              value: v("dob") }                    : null,
-    v("bloodGroup") ? { label: "Blood",            value: v("bloodGroup") }             : null,
-    v("phone")      ? { label: "Phone",            value: v("phone") }                  : null,
-  ].filter(Boolean) as { label: string; value: string; accent?: boolean }[];
+  const lgridFields: { label: string; value: string; accent?: boolean }[] = ([
+    v("idNumber")   ? { label: ID_LABEL[orgType], value: v("idNumber"),   accent: true } : null,
+    v("class")      ? { label: "Class",           value: v("class") }                   : null,
+    v("fatherName") ? { label: "Father",          value: v("fatherName") }              : null,
+    v("department") ? { label: "Dept.",           value: v("department") }              : null,
+    v("bloodGroup") ? { label: "Blood Grp",       value: v("bloodGroup") }             : null,
+    v("phone")      ? { label: "Phone",           value: v("phone") }                  : null,
+    v("dob")        ? { label: "DOB",             value: v("dob") }                    : null,
+  ] as ({ label: string; value: string; accent?: boolean } | null)[]).filter(Boolean) as { label: string; value: string; accent?: boolean }[];
 
   // â”€â”€ Create canvas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const canvas  = document.createElement("canvas");
@@ -382,62 +383,74 @@ async function renderCardToCanvas(
     // Divider
     ctx.fillStyle = theme.color + "8c"; ctx.fillRect(L_PHOTO_W, L_BODY_Y, 3, L_BODY_H);
 
-    // Estimate content height to vertically center it
+    // 4-col grid layout positions: [label | value | label | value]
+    // Mirrors LandscapeCard.tsx gridTemplateColumns: "58px 1fr 58px 1fr"
+    const LG_X0  = L_DETAILS_X + PAD;    // left label x
+    const LG_LW  = 55;                   // label column width
+    const LG_V0  = LG_X0 + LG_LW + 6;   // left value x
+    const LG_VW0 = 78;                   // left value max-width
+    const LG_L1  = LG_V0 + LG_VW0 + 8;  // right label x
+    const LG_V1  = LG_L1 + LG_LW + 6;   // right value x
+    const LG_VW1 = W - PAD - LG_V1;      // right value max-width
+    const LG_ROW = F_VALUE + 6;          // row height
+
+    // Estimate content height for vertical centering
+    const gridRows = Math.ceil(lgridFields.length / 2);
     const contentH =
       Math.round(F_NAME * 1.2) + 2
-      + (v("designation") ? F_DESIG + 7 : 0)
-      + (lgridFields.length > 0 ? Math.ceil(lgridFields.length / 2) * (F_LABEL + F_VALUE + 5) + 5 : 0)
-      + (v("email") ? F_SMALL + 6 : 0)
-      + (v("address") ? F_SMALL * 2.8 + 6 : 0)
-      + (v("emergencyContact") ? F_SMALL + 6 : 0);
+      + (v("designation") ? F_DESIG + 6 : 0)
+      + 7
+      + (gridRows > 0 ? gridRows * LG_ROW + 5 : 0)
+      + (v("address") ? F_SMALL + F_SMALL * 1.4 + 7 : 0)
+      + (v("emergencyContact") ? F_SMALL + 5 : 0);
     let dY = L_BODY_Y + Math.max(PAD, Math.round((L_BODY_H - contentH) / 2));
 
     // Name
     ctx.fillStyle = "#0f172a"; ctx.font = `bold ${F_NAME}px Arial`; ctx.textAlign = "left";
-    ctx.fillText(v("name") || "â€”", L_DETAILS_X + PAD, dY + F_NAME, L_DETAILS_W);
+    ctx.fillText(v("name") || "-", L_DETAILS_X + PAD, dY + F_NAME, L_DETAILS_W);
     dY += Math.round(F_NAME * 1.2) + 2;
 
-    // Designation
+    // Designation (shows below name, not in grid)
     if (v("designation")) {
       ctx.fillStyle = theme.color; ctx.font = `bold ${F_DESIG}px Arial`;
       ctx.fillText(v("designation"), L_DETAILS_X + PAD, dY + F_DESIG, L_DETAILS_W);
-      dY += F_DESIG + 7;
+      dY += F_DESIG + 6;
     }
 
-    // 2-col grid
-    if (lgridFields.length > 0) {
-      const ROW_H = F_LABEL + F_VALUE + 5;
-      lgridFields.forEach((f, i) => {
-        const col = i % 2; const row = Math.floor(i / 2);
-        const fx = col === 0 ? L_DETAILS_X + PAD : L_DETAILS_X + PAD + L_GRID_COL + 18;
-        const fy = dY + row * ROW_H;
-        ctx.fillStyle = "#94a3b8"; ctx.font = `${F_LABEL}px Arial`; ctx.textAlign = "left";
-        ctx.fillText(f.label.toUpperCase(), fx, fy + F_LABEL, L_GRID_COL);
-        ctx.fillStyle = f.accent ? theme.color : "#1e293b"; ctx.font = `bold ${F_VALUE}px Arial`;
-        ctx.fillText(f.value, fx, fy + F_LABEL + F_VALUE + 2, L_GRID_COL);
-      });
-      dY += Math.ceil(lgridFields.length / 2) * ROW_H + 5;
-    }
+    // Hairline divider under name section
+    ctx.strokeStyle = theme.color + "25"; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(L_DETAILS_X + PAD, dY); ctx.lineTo(W - PAD, dY); ctx.stroke();
+    dY += 7;
 
-    // Email
-    if (v("email")) {
-      ctx.fillStyle = "#64748b"; ctx.font = `${F_SMALL}px Arial`; ctx.textAlign = "left";
-      ctx.fillText(`âœ‰ ${v("email")}`, L_DETAILS_X + PAD, dY + F_SMALL, L_DETAILS_W);
-      dY += F_SMALL + 6;
-    }
+    // 4-col grid: [label][value][label][value] pairs per row
+    lgridFields.forEach((f, i) => {
+      const row  = Math.floor(i / 2);
+      const pair = i % 2;
+      const fy   = dY + row * LG_ROW + LG_ROW * 0.78;
+      const lx   = pair === 0 ? LG_X0 : LG_L1;
+      const vx   = pair === 0 ? LG_V0 : LG_V1;
+      const vw   = pair === 0 ? LG_VW0 : LG_VW1;
+      ctx.fillStyle = "#94a3b8"; ctx.font = `${F_LABEL}px Arial`; ctx.textAlign = "left";
+      ctx.fillText(f.label.toUpperCase(), lx, fy, LG_LW);
+      ctx.fillStyle = f.accent ? theme.color : "#1e293b"; ctx.font = `bold ${F_VALUE}px Arial`;
+      ctx.fillText(f.value, vx, fy, vw);
+    });
+    if (gridRows > 0) dY += gridRows * LG_ROW + 5;
 
-    // Address
+    // Address — full-width row below grid
     if (v("address")) {
-      ctx.fillStyle = "#475569"; ctx.font = `${F_SMALL}px Arial`; ctx.textAlign = "left";
-      const addrLines = wrapText(ctx, v("address"), L_DETAILS_W - 14);
-      ctx.fillText("ðŸ“", L_DETAILS_X + PAD, dY + F_SMALL, 12);
+      const aBase = dY + F_LABEL;
+      ctx.fillStyle = "#94a3b8"; ctx.font = `${F_LABEL}px Arial`; ctx.textAlign = "left";
+      ctx.fillText("ADDRESS", LG_X0, aBase, LG_LW);
+      ctx.fillStyle = "#475569"; ctx.font = `${F_SMALL}px Arial`;
+      const addrLines = wrapText(ctx, v("address"), W - PAD - LG_V0);
       addrLines.slice(0, 2).forEach((line, li) => {
-        ctx.fillText(line, L_DETAILS_X + PAD + 14, dY + F_SMALL + li * (F_SMALL * 1.4), L_DETAILS_W - 14);
+        ctx.fillText(line, LG_V0, aBase + li * (F_SMALL * 1.4), W - PAD - LG_V0);
       });
-      dY += F_SMALL * 1.4 * Math.min(addrLines.length, 2) + 6;
+      dY += F_SMALL + F_SMALL * 1.4 + 7;
     }
 
-    // Emergency
+    // Emergency contact
     if (v("emergencyContact")) {
       ctx.fillStyle = "#c2410c"; ctx.font = `bold ${F_SMALL}px Arial`; ctx.textAlign = "left";
       ctx.fillText(`SOS: ${v("emergencyContact")}`, L_DETAILS_X + PAD, dY + F_SMALL, L_DETAILS_W);

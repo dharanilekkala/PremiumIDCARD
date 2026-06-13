@@ -11,27 +11,35 @@ interface Props {
 }
 
 // CR80 Landscape — 480×300px
-// Header(25%=75px) → [Photo(30%=144px) | Details(70%)] → Footer(24px)
-// Barcode sits at bottom of photo column
+// Header(75px) → [Photo(144px) | Details(flex)] → Footer(24px)
 export default function LandscapeCard({ data, photo, theme, subtitle, idLabel }: Props) {
   const v = (k: string) => data[k]?.trim() ?? "";
 
-  const HEADER_H = 75;  // 25% of 300
+  const HEADER_H = 75;
   const FOOTER_H = 24;
   const BODY_H   = 300 - HEADER_H - FOOTER_H; // 201px
-  const PHOTO_W  = 144; // 30% of 480
-  const PHOTO_H  = Math.round(BODY_H * 0.72); // ~145px (face + shoulders)
+  const PHOTO_W  = 144;
+  const PHOTO_H  = Math.round(BODY_H * 0.85); // ~171px (face + shoulders)
 
-  const orgInitial = (v("organization") || "S").charAt(0).toUpperCase();
+  const orgInitial = (v("organization") || "O").charAt(0).toUpperCase();
 
-  const detailFields: { label: string; value: string; accent?: boolean }[] = [
-    v("idNumber")   ? { label: idLabel,        value: v("idNumber"),    accent: true } : null,
-    v("class")      ? { label: "Class",         value: v("class") }                   : null,
-    v("department") ? { label: "Department",    value: v("department") }              : null,
-    v("dob")        ? { label: "Date of Birth", value: v("dob") }                    : null,
-    v("bloodGroup") ? { label: "Blood Group",   value: v("bloodGroup") }             : null,
-    v("designation")? { label: "Role",          value: v("designation") }            : null,
-  ].filter(Boolean) as { label: string; value: string; accent?: boolean }[];
+  // Detail grid fields — excludes address (handled separately as full-width row)
+  const detailFields: { label: string; value: string; accent?: boolean }[] = ([
+    v("idNumber")    ? { label: idLabel,        value: v("idNumber"),    accent: true } : null,
+    v("class")       ? { label: "Class",         value: v("class") }                   : null,
+    v("fatherName")  ? { label: "Father",        value: v("fatherName") }              : null,
+    v("department")  ? { label: "Dept.",         value: v("department") }              : null,
+    v("bloodGroup")  ? { label: "Blood Grp",     value: v("bloodGroup") }             : null,
+    v("phone")       ? { label: "Phone",         value: v("phone") }                  : null,
+    v("dob")         ? { label: "DOB",           value: v("dob") }                    : null,
+    v("email")       ? { label: "Email",         value: v("email") }                  : null,
+  ] as ({ label: string; value: string; accent?: boolean } | null)[]).filter(Boolean) as { label: string; value: string; accent?: boolean }[];
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 6, color: "#94a3b8", fontWeight: 700,
+    textTransform: "uppercase", letterSpacing: 0.6, lineHeight: 1.3,
+    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+  };
 
   return (
     <div style={{
@@ -44,7 +52,7 @@ export default function LandscapeCard({ data, photo, theme, subtitle, idLabel }:
       display: "flex", flexDirection: "column",
     }}>
 
-      {/* ── Header 25% (~75px): emblem + org + identity badge ─── */}
+      {/* ── Header 75px ─────────────────────────────────────────── */}
       <div style={{
         background: `linear-gradient(120deg, ${theme.from} 0%, ${theme.to} 100%)`,
         height: HEADER_H,
@@ -55,7 +63,7 @@ export default function LandscapeCard({ data, photo, theme, subtitle, idLabel }:
         {/* Emblem circle */}
         <div style={{
           width: 52, height: 52, borderRadius: "50%",
-          background: "rgba(255,255,255,0.15)", border: "2px solid rgba(255,255,255,0.4)",
+          background: "rgba(255,255,255,0.15)", border: "2px solid rgba(255,255,255,0.40)",
           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
         }}>
           <span style={{ color: "#fff", fontWeight: 900, fontSize: 20 }}>{orgInitial}</span>
@@ -68,13 +76,13 @@ export default function LandscapeCard({ data, photo, theme, subtitle, idLabel }:
           }}>
             {v("organization") || "Organization Name"}
           </div>
-          <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 8.5, marginTop: 3, letterSpacing: 1.8, textTransform: "uppercase" }}>
+          <div style={{ color: "rgba(255,255,255,0.80)", fontSize: 8.5, marginTop: 3, letterSpacing: 1.8, textTransform: "uppercase" }}>
             {subtitle}
           </div>
         </div>
-        {/* Identity card badge */}
+        {/* Badge */}
         <div style={{
-          background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)",
+          background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.30)",
           borderRadius: 6, padding: "5px 12px", flexShrink: 0, textAlign: "center",
         }}>
           <div style={{ color: "#fff", fontSize: 8, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase" }}>Identity</div>
@@ -82,19 +90,18 @@ export default function LandscapeCard({ data, photo, theme, subtitle, idLabel }:
         </div>
       </div>
 
-      {/* ── Body: [Photo col 30%] | [Details col 70%] ──────────── */}
+      {/* ── Body ────────────────────────────────────────────────── */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
-        {/* Photo column — 30% width, gradient bg */}
+        {/* Photo column — 144px */}
         <div style={{
           width: PHOTO_W, flexShrink: 0,
           background: `linear-gradient(180deg, ${theme.from}22 0%, ${theme.to}14 100%)`,
           display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "space-between",
-          padding: "10px 10px 6px",
+          alignItems: "center", justifyContent: "center",
+          padding: "10px 10px 10px",
           borderRight: `2px solid ${theme.color}30`,
         }}>
-          {/* Photo frame */}
           <div style={{
             width: PHOTO_W - 24, height: PHOTO_H,
             borderRadius: 8, overflow: "hidden",
@@ -104,8 +111,7 @@ export default function LandscapeCard({ data, photo, theme, subtitle, idLabel }:
             boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
           }}>
             {photo ? (
-              <img
-                src={photo} alt="Photo"
+              <img src={photo} alt="Photo"
                 style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 10%", display: "block" }}
               />
             ) : (
@@ -115,40 +121,28 @@ export default function LandscapeCard({ data, photo, theme, subtitle, idLabel }:
               </div>
             )}
           </div>
-
-          {/* Barcode at bottom of photo column */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-            <div style={{ display: "flex", gap: 0.7, alignItems: "stretch", height: 16 }}>
-              {[2,1,2,1,3,1,1,2,1,3,1,2,1,1,2,3,1,2,1,2].map((w, i) => (
-                <div key={i} style={{ width: w, background: i % 2 === 0 ? theme.from : "transparent" }} />
-              ))}
-            </div>
-            <div style={{ fontSize: 5.5, color: "#94a3b8", letterSpacing: 0.3, textAlign: "center" }}>
-              {(v("idNumber") || "XXXXXXXX").slice(0, 12)}
-            </div>
-          </div>
         </div>
 
-        {/* Details column — 70% */}
+        {/* Details column */}
         <div style={{
           flex: 1, padding: "10px 14px 8px",
           display: "flex", flexDirection: "column",
-          justifyContent: "space-between",
           minWidth: 0, overflow: "hidden",
           background: "#fff",
+          gap: 0,
         }}>
 
           {/* Name + designation */}
-          <div style={{ borderBottom: `1px solid ${theme.color}25`, paddingBottom: 6 }}>
+          <div style={{ borderBottom: `1px solid ${theme.color}22`, paddingBottom: 5, flexShrink: 0 }}>
             <div style={{
-              fontSize: 19, fontWeight: 900, color: "#0f172a", lineHeight: 1.15,
+              fontSize: 18, fontWeight: 900, color: "#0f172a", lineHeight: 1.15,
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             }}>
               {v("name") || <span style={{ color: "#cbd5e1", fontWeight: 400, fontSize: 14 }}>Student Name</span>}
             </div>
             {v("designation") && (
               <div style={{
-                fontSize: 9, color: theme.color, fontWeight: 700, marginTop: 2,
+                fontSize: 8.5, color: theme.color, fontWeight: 700, marginTop: 2,
                 textTransform: "uppercase", letterSpacing: 0.8,
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}>
@@ -157,56 +151,44 @@ export default function LandscapeCard({ data, photo, theme, subtitle, idLabel }:
             )}
           </div>
 
-          {/* 2-col detail grid */}
+          {/* 4-column grid: [label] [value] [label] [value] */}
           {detailFields.length > 0 && (
             <div style={{
-              display: "grid", gridTemplateColumns: "1fr 1fr",
-              gap: "4px 12px", flex: 1,
-              alignContent: "start", paddingTop: 6,
+              display: "grid",
+              gridTemplateColumns: "58px 1fr 58px 1fr",
+              gap: "5px 8px",
+              paddingTop: 7, flex: 1, alignContent: "start",
             }}>
-              {detailFields.map(f => (
-                <div key={f.label} style={{ minWidth: 0, paddingBottom: 2 }}>
-                  <div style={{ fontSize: 6, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.7 }}>
-                    {f.label}
-                  </div>
-                  <div style={{
-                    fontSize: 9.5, lineHeight: 1.4,
-                    fontWeight: f.accent ? 800 : 600,
-                    color: f.accent ? theme.color : "#1e293b",
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }}>
-                    {f.value}
-                  </div>
-                </div>
-              ))}
+              {detailFields.flatMap((f, i) => [
+                <span key={`${i}l`} style={labelStyle}>{f.label}</span>,
+                <span key={`${i}v`} style={{
+                  fontSize: 9, fontWeight: f.accent ? 800 : 700,
+                  color: f.accent ? theme.color : "#1e293b",
+                  lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>
+                  {f.value}
+                </span>,
+              ])}
             </div>
           )}
 
-          {/* Contact: phone, email, address */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center", marginTop: 4 }}>
-            {v("phone") && (
-              <span style={{ fontSize: 8, color: "#475569", whiteSpace: "nowrap" }}>
-                <span style={{ color: theme.color }}>📞</span> {v("phone")}
+          {/* Address — full width at bottom */}
+          {v("address") && (
+            <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: 6, marginTop: 5, alignItems: "flex-start", flexShrink: 0 }}>
+              <span style={labelStyle}>Address</span>
+              <span style={{
+                fontSize: 8, color: "#64748b", lineHeight: 1.35,
+                display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2,
+                overflow: "hidden",
+              } as React.CSSProperties}>
+                {v("address")}
               </span>
-            )}
-            {v("email") && (
-              <span style={{ fontSize: 7.5, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>
-                ✉ {v("email")}
-              </span>
-            )}
-            {v("address") && (
-              <div style={{
-                fontSize: 7.5, color: "#64748b", width: "100%", lineHeight: 1.35,
-                maxHeight: `${2 * 1.35 * 7.5}px`, overflow: "hidden",
-              }}>
-                📍 {v("address")}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── Footer ─────────────────────────────────────────────── */}
+      {/* ── Footer 24px ──────────────────────────────────────────── */}
       <div style={{
         background: `linear-gradient(120deg, ${theme.from} 0%, ${theme.to} 100%)`,
         height: FOOTER_H,
@@ -220,7 +202,7 @@ export default function LandscapeCard({ data, photo, theme, subtitle, idLabel }:
         {v("expiryDate") && (
           <span style={{ color: "#fff", fontSize: 7.5, fontWeight: 700 }}>Valid: {v("expiryDate")}</span>
         )}
-        <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 6.5 }}>Secure Identity</span>
+        <span style={{ color: "rgba(255,255,255,0.50)", fontSize: 6.5 }}>Secure Identity</span>
       </div>
     </div>
   );
