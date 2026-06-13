@@ -470,10 +470,14 @@ async function renderCardToCanvas(
     ctx.fillStyle = "#fff"; ctx.font = `bold ${F_FOOT}px Arial`; ctx.textAlign = "left";
     ctx.fillText(`Valid Until: ${v("expiryDate")}`, PAD, footY + FOOTER_H * 0.65);
   }
-  ctx.fillStyle = "rgba(255,255,255,0.40)"; ctx.font = `${F_FOOT}px Arial`; ctx.textAlign = "right";
-  ctx.fillText("ID CARD", W - PAD, footY + FOOTER_H * 0.48);
-  ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.font = `${F_FOOT - 1}px Arial`;
-  ctx.fillText("Secure", W - PAD, footY + FOOTER_H * 0.68);
+  // Signature area — right side of footer
+  const SIG_W = 62;
+  const SIG_X = W - PAD - SIG_W;
+  const SIG_LINE_Y = footY + Math.round(FOOTER_H * 0.52);
+  ctx.strokeStyle = "rgba(255,255,255,0.50)"; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(SIG_X, SIG_LINE_Y); ctx.lineTo(SIG_X + SIG_W, SIG_LINE_Y); ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.font = `6px Arial`; ctx.textAlign = "center";
+  ctx.fillText("Signature", SIG_X + SIG_W / 2, SIG_LINE_Y + 9);
   return canvas;
 }
 

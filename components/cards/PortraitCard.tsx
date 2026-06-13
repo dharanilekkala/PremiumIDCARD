@@ -195,12 +195,10 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
             : <span style={{ color: "rgba(255,255,255,0.38)", fontSize: 6.5, lineHeight: 1 }}>Not for commercial use</span>
           }
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-          <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 6, lineHeight: 1, textTransform: "uppercase", letterSpacing: 0.8 }}>
-            ID Card
-          </span>
-          <span style={{ color: "rgba(255,255,255,0.28)", fontSize: 5.5, lineHeight: 1 }}>
-            Secure · Official
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 72 }}>
+          <div style={{ width: 68, height: 18, borderBottom: "1px solid rgba(255,255,255,0.50)" }} />
+          <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 6, letterSpacing: 0.8, textTransform: "uppercase" }}>
+            Signature
           </span>
         </div>
       </div>
