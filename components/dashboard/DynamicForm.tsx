@@ -1,9 +1,10 @@
 "use client";
 import { useRef, useState } from "react";
 import { DetectedField } from "@/lib/templateAnalyzer";
-import { motion } from "framer-motion";
-import { Camera, Upload, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Camera, Upload, X, Crop } from "lucide-react";
 import CameraModal from "./CameraModal";
+import PhotoEditor from "@/components/PhotoEditor";
 
 interface Props {
   fields: DetectedField[];
@@ -21,6 +22,7 @@ const INPUT_TYPE: Record<string, string> = {
 function PhotoField({ field, value, onChange }: { field: DetectedField; value: string; onChange: (k: string, v: string) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
 
   const load = (f: File) => {
     const r = new FileReader();
@@ -37,7 +39,7 @@ function PhotoField({ field, value, onChange }: { field: DetectedField; value: s
         </label>
 
         {value ? (
-          /* ── Photo selected: preview + action row ── */
+          /* ── Photo selected: preview + 3-button action row ── */
           <div className="space-y-2">
             <div className="relative rounded-xl overflow-hidden border border-emerald-500/25 bg-black/20">
               <img src={value} alt="Student photo" className="w-full h-32 object-contain" />
@@ -51,18 +53,26 @@ function PhotoField({ field, value, onChange }: { field: DetectedField; value: s
             <div className="flex gap-2">
               <button
                 onClick={() => fileRef.current?.click()}
-                className="flex-1 flex items-center justify-center gap-2 text-xs font-semibold text-white/60 bg-white/[0.05] border border-white/[0.09] hover:text-white hover:bg-white/[0.10] hover:border-white/20 transition-all rounded-xl"
-                style={{ height: 44 }}
+                className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-white/60 bg-white/[0.05] border border-white/[0.09] hover:text-white hover:bg-white/[0.10] hover:border-white/20 transition-all rounded-xl"
+                style={{ height: 40 }}
               >
-                <Upload style={{ width: 18, height: 18 }} />
-                Change Photo
+                <Upload style={{ width: 14, height: 14 }} />
+                Change
+              </button>
+              <button
+                onClick={() => setEditorOpen(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/25 hover:bg-emerald-500/20 hover:text-emerald-200 transition-all rounded-xl"
+                style={{ height: 40 }}
+              >
+                <Crop style={{ width: 14, height: 14 }} />
+                Edit Photo
               </button>
               <button
                 onClick={() => setCameraOpen(true)}
-                className="flex-1 flex items-center justify-center gap-2 text-xs font-bold text-white rounded-xl transition-all"
-                style={{ height: 44, background: "linear-gradient(135deg, #7c3aed 0%, #9333ea 55%, #6366f1 100%)" }}
+                className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-bold text-white transition-all rounded-xl"
+                style={{ height: 40, background: "linear-gradient(135deg, #7c3aed 0%, #9333ea 55%, #6366f1 100%)" }}
               >
-                <Camera style={{ width: 18, height: 18 }} />
+                <Camera style={{ width: 14, height: 14 }} />
                 Retake
               </button>
             </div>
@@ -111,6 +121,17 @@ function PhotoField({ field, value, onChange }: { field: DetectedField; value: s
         onClose={() => setCameraOpen(false)}
         onCapture={(dataUrl) => onChange(field.key, dataUrl)}
       />
+
+      <AnimatePresence>
+        {editorOpen && value && (
+          <PhotoEditor
+            src={value}
+            onApply={(cropped) => { onChange(field.key, cropped); setEditorOpen(false); }}
+            onClose={() => setEditorOpen(false)}
+            accent={{ from: "#7c3aed", to: "#6366f1" }}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }
