@@ -7,10 +7,12 @@ import {
   Loader2, ZoomIn, RotateCw, FlipHorizontal, ScanLine, FormInput, Wand2,
   AlertTriangle, FolderOpen, PlusCircle, RotateCcw, Clock, FileText,
   ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Plus,
+  Image as ImageIcon, PenLine,
 } from "lucide-react";
 import { isPdf } from "@/lib/pdfUtils";
 import type { PdfInfo } from "@/lib/pdfUtils";
 import { useRouter } from "next/navigation";
+import DirectEntryMode from "@/components/dashboard/DirectEntryMode";
 import FieldDetectionPanel from "@/components/dashboard/FieldDetectionPanel";
 import DynamicForm from "@/components/dashboard/DynamicForm";
 import CardOverlay from "@/components/dashboard/CardOverlay";
@@ -129,8 +131,109 @@ const PHASE_META: { id: Phase; label: string; icon: React.ElementType }[] = [
   { id: "fill",      label: "Fill & Generate",  icon: Wand2      },
 ];
 
+// ─── Mode chooser shown before entering any workflow ─────────────────────────
+function ModeChooser({ onSelect }: { onSelect: (mode: "direct" | "reference") => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-full px-4 py-6 sm:py-8">
+      <div className="text-center mb-6 sm:mb-10 max-w-lg">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center mx-auto mb-4 shadow-glow">
+          <PenLine className="w-7 h-7 text-white" />
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-black text-white mb-3">
+          Design Manual Builder
+        </h1>
+        <p className="text-white/40 text-sm leading-relaxed">
+          Create professional ID cards in minutes — no design skills needed.
+          Choose how you want to start.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-2xl">
+        {/* Direct Entry */}
+        <motion.button
+          whileHover={{ scale: 1.02, y: -3 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => onSelect("direct")}
+          className="relative flex flex-col items-start gap-3 sm:gap-4 p-5 sm:p-7 rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] hover:border-brand-500/30 text-left transition-all group overflow-hidden"
+        >
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl"
+            style={{ background: "radial-gradient(circle at 10% 20%, rgba(99,102,241,0.12) 0%, transparent 70%)" }} />
+
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center shadow-glow-sm transition-all group-hover:scale-110">
+            <PenLine className="w-7 h-7 text-white" />
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg font-black text-white">Direct Entry Mode</span>
+              <span className="text-[9px] font-black bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full">BEGINNER FRIENDLY</span>
+            </div>
+            <p className="text-sm text-white/50 leading-relaxed mb-4">
+              No reference card needed. Just type in the details, add a photo, and download — done in under 2 minutes!
+            </p>
+            <ul className="space-y-1.5">
+              {["Fill a simple form", "Upload or take a photo", "Live card preview", "Download as PNG"].map(item => (
+                <li key={item} className="flex items-center gap-2 text-xs text-white/40">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="w-full flex items-center justify-end mt-2">
+            <span className="text-xs font-bold text-brand-400 group-hover:text-brand-300 transition-colors flex items-center gap-1">
+              Start here <ArrowRight className="w-3.5 h-3.5" />
+            </span>
+          </div>
+        </motion.button>
+
+        {/* Reference Card */}
+        <motion.button
+          whileHover={{ scale: 1.02, y: -3 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => onSelect("reference")}
+          className="relative flex flex-col items-start gap-3 sm:gap-4 p-5 sm:p-7 rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] hover:border-violet-500/30 text-left transition-all group overflow-hidden"
+        >
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl"
+            style={{ background: "radial-gradient(circle at 10% 20%, rgba(139,92,246,0.12) 0%, transparent 70%)" }} />
+
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-glow-sm transition-all group-hover:scale-110">
+            <ImageIcon className="w-7 h-7 text-white" />
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg font-black text-white">Use Reference Card</span>
+              <span className="text-[9px] font-black bg-violet-500/20 border border-violet-500/30 text-violet-400 px-2 py-0.5 rounded-full">AI POWERED</span>
+            </div>
+            <p className="text-sm text-white/50 leading-relaxed mb-4">
+              Already have an ID card design? Upload it and our AI will detect all the fields automatically.
+            </p>
+            <ul className="space-y-1.5">
+              {["AI field detection", "Auto-fills layout", "Works with any card", "Bulk card generation"].map(item => (
+                <li key={item} className="flex items-center gap-2 text-xs text-white/40">
+                  <Sparkles className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="w-full flex items-center justify-end mt-2">
+            <span className="text-xs font-bold text-violet-400 group-hover:text-violet-300 transition-colors flex items-center gap-1">
+              Upload reference <ArrowRight className="w-3.5 h-3.5" />
+            </span>
+          </div>
+        </motion.button>
+      </div>
+    </div>
+  );
+}
+
 export default function ManualBuilderPage() {
   const router = useRouter();
+  const [builderMode, setBuilderMode] = useState<"choose" | "direct" | "reference">("choose");
   const [phase, setPhase] = useState<Phase>("select");
   const [savedTemplates, setSavedTemplates] = useState<SavedTemplate[]>([]);
   const [frontImg, setFrontImg] = useState<string | null>(null);
@@ -456,6 +559,23 @@ export default function ManualBuilderPage() {
     });
   }, [fields]);
 
+  // ── Mode routing ──────────────────────────────────────────────────────────
+  if (builderMode === "choose") {
+    return (
+      <div className="h-[calc(100vh-5.5rem)] overflow-y-auto">
+        <ModeChooser onSelect={setBuilderMode} />
+      </div>
+    );
+  }
+
+  if (builderMode === "direct") {
+    return (
+      <div className="h-[calc(100vh-5.5rem)] overflow-hidden">
+        <DirectEntryMode onBack={() => setBuilderMode("choose")} />
+      </div>
+    );
+  }
+
   return (
     <>
     <div className="flex h-[calc(100vh-5.5rem)] gap-4 overflow-hidden">
@@ -492,6 +612,10 @@ export default function ManualBuilderPage() {
           {/* ── SELECT SOURCE PHASE ── */}
           {phase === "select" && (
             <div className="space-y-4">
+              <button onClick={() => setBuilderMode("choose")}
+                className="text-[10px] text-brand-400 hover:text-brand-300 flex items-center gap-1 mb-1">
+                ← Back to mode selection
+              </button>
               <div>
                 <div className="text-xs font-bold text-white mb-1">How do you want to start?</div>
                 <p className="text-[10px] text-white/40 leading-relaxed">
