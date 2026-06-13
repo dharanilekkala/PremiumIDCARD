@@ -14,7 +14,7 @@ import {
 } from "@/lib/templateAnalyzer";
 import { isPdf } from "@/lib/pdfUtils";
 import type { PdfInfo } from "@/lib/pdfUtils";
-import { passportPhotoCrop, clearPassportCache } from "@/lib/passportCrop";
+import { clearPassportCache } from "@/lib/passportCrop";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -666,21 +666,12 @@ export default function AIBuilderPage() {
     setPreviewLoading(true); setPreviewCards([]);
     const { fields, photoBox, textColor, dimensions } = analysis;
 
-    // Photo box aspect ratio — used to produce a pre-cropped passport photo
-    // with the exact proportions of the card's photo frame.
-    const boxAR = photoBox
-      ? (photoBox.w * dimensions.width) / (photoBox.h * dimensions.height)
-      : 0.75;
-
     const cards: string[] = [];
     for (const { row, photoUrl } of matched.slice(0, 10)) {
       const values = buildCardValues(fields, row);
-      // Smart-crop each photo to passport framing before rendering
-      let croppedPhoto = photoUrl;
-      if (photoUrl) {
-        try { croppedPhoto = await passportPhotoCrop(photoUrl, boxAR); } catch { /* keep original */ }
-      }
-      cards.push(await renderCardToDataURL(templateImg, fields, values, photoBox, croppedPhoto, textColor ?? "#111111", false));
+      // Pass original photo — drawCard cover-fits it into the detected photo zone
+      // preserving full body: uniform, tie, badge, shoulders all remain visible.
+      cards.push(await renderCardToDataURL(templateImg, fields, values, photoBox, photoUrl, textColor ?? "#111111", false));
     }
     setPreviewCards(cards);
     setPreviewLoading(false);
@@ -708,11 +699,6 @@ export default function AIBuilderPage() {
 
     const { fields, photoBox, textColor, dimensions } = analysis;
 
-    // Photo box aspect ratio for passport-crop pre-processing
-    const boxAR = photoBox
-      ? (photoBox.w * dimensions.width) / (photoBox.h * dimensions.height)
-      : 0.75;
-
     const cards: GeneratedCard[] = [];
     const CHUNK = 20;
 
@@ -722,12 +708,9 @@ export default function AIBuilderPage() {
 
       const results = await Promise.all(slice.map(async ({ row, photoUrl, idx }) => {
         const values = buildCardValues(fields, row);
-        // Smart-crop photo to passport framing (cached after first use)
-        let croppedPhoto = photoUrl;
-        if (photoUrl) {
-          try { croppedPhoto = await passportPhotoCrop(photoUrl, boxAR); } catch { /* keep original */ }
-        }
-        const dataUrl = await renderCardToDataURL(templateImg, fields, values, photoBox, croppedPhoto, textColor ?? "#111111", false);
+        // Pass original photo — drawCard cover-fits into the detected zone,
+        // keeping uniform, shoulders, tie and badge fully visible.
+        const dataUrl = await renderCardToDataURL(templateImg, fields, values, photoBox, photoUrl, textColor ?? "#111111", false);
         return { idx, name: row.studentName || row.employeeName || `card_${idx + 1}`, dataUrl };
       }));
 

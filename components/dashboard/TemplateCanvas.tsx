@@ -1,5 +1,4 @@
 "use client";
-// v3 — Passport photo pre-processing via passportPhotoCrop
 /**
  * TemplateCanvas — Clean Erase-Then-Replace Pipeline
  *
@@ -7,7 +6,7 @@
  * STEP 2  Erase ALL original text values using pixel-sampled local bg color
  * STEP 3  Erase original student photo (always, from all fields)
  * STEP 4  Insert user's new text values at exact positions
- * STEP 5  Insert user's uploaded photo into photo frame
+ * STEP 5  Insert user's uploaded photo into photo frame (cover-fit, full body)
  *
  * Design notes:
  * - bgImg AND user photo are both pre-loaded before any canvas draw, so the
@@ -17,14 +16,13 @@
  *   backgrounds far better than a global bgColor constant.
  * - Photo erase uses a 15 px outward pad so slightly-off photoBox coords can
  *   never leave the original photo visible at the edges.
- * - Photos are pre-processed through passportPhotoCrop before drawCard runs,
- *   so STEP 5 always receives a correctly framed passport-standard image.
+ * - Photos are cover-fit into the detected photo zone — full body preserved
+ *   (uniform, tie, badge, shoulders). User can crop via the Edit Photo editor.
  */
 import {
   useEffect, useRef, forwardRef, useImperativeHandle, useCallback,
 } from "react";
 import { DetectedField, BoundingBox } from "@/lib/templateAnalyzer";
-import { passportPhotoCrop } from "@/lib/passportCrop";
 
 export interface TemplateCanvasHandle {
   downloadPNG: (filename?: string) => void;
@@ -658,8 +656,6 @@ function drawCard(
         sy = 0;
       } else {
         // Portrait/square → fit width, centre-crop height.
-        // passportPhotoCrop already placed the face at 38 % from top with the
-        // correct box aspect ratio, so a simple centre crop preserves that framing.
         sw = imgW;
         sh = Math.round(imgW / boxAR);
         sx = 0;
@@ -837,23 +833,12 @@ const TemplateCanvas = forwardRef<TemplateCanvasHandle, Props>(function Template
 
     bgImg.onload = () => {
       if (photoSrc) {
-        // Compute photo-box aspect ratio from the loaded background dimensions
-        // so passportPhotoCrop can produce the exact proportions of the frame.
-        const W = bgImg.naturalWidth;
-        const H = bgImg.naturalHeight;
-        const boxAR = photoBox && W && H
-          ? (photoBox.w * W) / (photoBox.h * H)
-          : 0.75;
-
-        // Passport-crop the photo first, then load the result for synchronous draw.
-        passportPhotoCrop(photoSrc, boxAR)
-          .catch(() => photoSrc)   // fall back to original on any error
-          .then(croppedSrc => {
-            const pImg = new Image();
-            pImg.onload  = () => drawCard(ctx, canvas, bgImg, pImg,  fields, values, photoBox, textColor, false, debug);
-            pImg.onerror = () => drawCard(ctx, canvas, bgImg, null,  fields, values, photoBox, textColor, false, debug);
-            pImg.src = croppedSrc;
-          });
+        // Load original photo directly — drawCard cover-fits it into the detected
+        // photo zone, preserving full body: uniform, tie, badge, shoulders visible.
+        const pImg = new Image();
+        pImg.onload  = () => drawCard(ctx, canvas, bgImg, pImg,  fields, values, photoBox, textColor, false, debug);
+        pImg.onerror = () => drawCard(ctx, canvas, bgImg, null,  fields, values, photoBox, textColor, false, debug);
+        pImg.src = photoSrc;
       } else {
         drawCard(ctx, canvas, bgImg, null, fields, values, photoBox, textColor, false, debug);
       }
