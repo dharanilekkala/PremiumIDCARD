@@ -27,17 +27,17 @@ export default function LandscapeCard({ data, photo, theme, subtitle, idLabel }:
   const detailFields: { label: string; value: string; accent?: boolean }[] = ([
     v("idNumber")    ? { label: idLabel,        value: v("idNumber"),    accent: true } : null,
     v("class")       ? { label: "Class",         value: v("class") }                   : null,
-    v("fatherName")  ? { label: "Father",        value: v("fatherName") }              : null,
-    v("department")  ? { label: "Dept.",         value: v("department") }              : null,
-    v("bloodGroup")  ? { label: "Blood Grp",     value: v("bloodGroup") }             : null,
+    v("fatherName")  ? { label: "Father Name",    value: v("fatherName") }              : null,
+    v("department")  ? { label: "Department",     value: v("department") }              : null,
+    v("bloodGroup")  ? { label: "Blood Group",    value: v("bloodGroup") }             : null,
     v("phone")       ? { label: "Phone",         value: v("phone") }                  : null,
     v("dob")         ? { label: "DOB",           value: v("dob") }                    : null,
     v("email")       ? { label: "Email",         value: v("email") }                  : null,
   ] as ({ label: string; value: string; accent?: boolean } | null)[]).filter(Boolean) as { label: string; value: string; accent?: boolean }[];
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 6, color: "#94a3b8", fontWeight: 700,
-    textTransform: "uppercase", letterSpacing: 0.6, lineHeight: 1.3,
+    fontSize: 7.5, color: "#64748b", fontWeight: 600,
+    lineHeight: 1.4,
     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
   };
 
@@ -151,37 +151,39 @@ export default function LandscapeCard({ data, photo, theme, subtitle, idLabel }:
             )}
           </div>
 
-          {/* 4-column grid: [label] [value] [label] [value] */}
+          {/* Single-col grid: [label 140px] [value] — 1 field per row */}
           {detailFields.length > 0 && (
             <div style={{
               display: "grid",
-              gridTemplateColumns: "58px 1fr 58px 1fr",
-              gap: "5px 8px",
+              gridTemplateColumns: "140px 1fr",
+              rowGap: 8,
+              columnGap: 8,
               paddingTop: 7, flex: 1, alignContent: "start",
+              overflow: "hidden",
             }}>
               {detailFields.flatMap((f, i) => [
                 <span key={`${i}l`} style={labelStyle}>{f.label}</span>,
                 <span key={`${i}v`} style={{
-                  fontSize: 9, fontWeight: f.accent ? 800 : 700,
+                  fontSize: 8, fontWeight: f.accent ? 700 : 500,
                   color: f.accent ? theme.color : "#1e293b",
                   lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                 }}>
-                  {f.value}
+                  : {f.value}
                 </span>,
               ])}
             </div>
           )}
 
-          {/* Address — full width at bottom */}
+          {/* Address — same 2-col grid, value wraps 2 lines */}
           {v("address") && (
-            <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: 6, marginTop: 5, alignItems: "flex-start", flexShrink: 0 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", columnGap: 8, marginTop: 5, alignItems: "flex-start", flexShrink: 0 }}>
               <span style={labelStyle}>Address</span>
               <span style={{
-                fontSize: 8, color: "#64748b", lineHeight: 1.35,
+                fontSize: 8, fontWeight: 500, color: "#475569", lineHeight: 1.4,
                 display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2,
                 overflow: "hidden",
               } as React.CSSProperties}>
-                {v("address")}
+                : {v("address")}
               </span>
             </div>
           )}

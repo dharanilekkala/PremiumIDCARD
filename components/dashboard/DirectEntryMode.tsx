@@ -235,9 +235,9 @@ async function renderCardToCanvas(
   const lgridFields: { label: string; value: string; accent?: boolean }[] = ([
     v("idNumber")   ? { label: ID_LABEL[orgType], value: v("idNumber"),   accent: true } : null,
     v("class")      ? { label: "Class",           value: v("class") }                   : null,
-    v("fatherName") ? { label: "Father",          value: v("fatherName") }              : null,
-    v("department") ? { label: "Dept.",           value: v("department") }              : null,
-    v("bloodGroup") ? { label: "Blood Grp",       value: v("bloodGroup") }             : null,
+    v("fatherName") ? { label: "Father Name",      value: v("fatherName") }              : null,
+    v("department") ? { label: "Department",       value: v("department") }              : null,
+    v("bloodGroup") ? { label: "Blood Group",      value: v("bloodGroup") }             : null,
     v("phone")      ? { label: "Phone",           value: v("phone") }                  : null,
     v("dob")        ? { label: "DOB",             value: v("dob") }                    : null,
   ] as ({ label: string; value: string; accent?: boolean } | null)[]).filter(Boolean) as { label: string; value: string; accent?: boolean }[];
@@ -383,25 +383,22 @@ async function renderCardToCanvas(
     // Divider
     ctx.fillStyle = theme.color + "8c"; ctx.fillRect(L_PHOTO_W, L_BODY_Y, 3, L_BODY_H);
 
-    // 4-col grid layout positions: [label | value | label | value]
-    // Mirrors LandscapeCard.tsx gridTemplateColumns: "58px 1fr 58px 1fr"
-    const LG_X0  = L_DETAILS_X + PAD;    // left label x
-    const LG_LW  = 55;                   // label column width
-    const LG_V0  = LG_X0 + LG_LW + 6;   // left value x
-    const LG_VW0 = 78;                   // left value max-width
-    const LG_L1  = LG_V0 + LG_VW0 + 8;  // right label x
-    const LG_V1  = LG_L1 + LG_LW + 6;   // right value x
-    const LG_VW1 = W - PAD - LG_V1;      // right value max-width
-    const LG_ROW = F_VALUE + 6;          // row height
+    // Single-col grid: [label 140px | value rest] — 1 field per row
+    // Mirrors LandscapeCard.tsx gridTemplateColumns: "140px 1fr", rowGap: 8
+    const LG_X0 = L_DETAILS_X + PAD;  // label start x
+    const LG_LW = 140;                 // label column width (matches CSS 140px)
+    const LG_VX = LG_X0 + LG_LW + 8;  // value start x (8px col gap)
+    const LG_VW = W - PAD - LG_VX;     // value max width
+    const LG_ROW = F_VALUE + 8;        // row height (matches CSS row-gap 8px)
 
     // Estimate content height for vertical centering
-    const gridRows = Math.ceil(lgridFields.length / 2);
+    const gridRows = lgridFields.length;
     const contentH =
       Math.round(F_NAME * 1.2) + 2
       + (v("designation") ? F_DESIG + 6 : 0)
       + 7
       + (gridRows > 0 ? gridRows * LG_ROW + 5 : 0)
-      + (v("address") ? F_SMALL + F_SMALL * 1.4 + 7 : 0)
+      + (v("address") ? F_LABEL + F_SMALL * 1.4 + 7 : 0)
       + (v("emergencyContact") ? F_SMALL + 5 : 0);
     let dY = L_BODY_Y + Math.max(PAD, Math.round((L_BODY_H - contentH) / 2));
 
@@ -422,30 +419,25 @@ async function renderCardToCanvas(
     ctx.beginPath(); ctx.moveTo(L_DETAILS_X + PAD, dY); ctx.lineTo(W - PAD, dY); ctx.stroke();
     dY += 7;
 
-    // 4-col grid: [label][value][label][value] pairs per row
+    // Single-col rows: label (600-weight) at LG_X0 | ": value" at LG_VX
     lgridFields.forEach((f, i) => {
-      const row  = Math.floor(i / 2);
-      const pair = i % 2;
-      const fy   = dY + row * LG_ROW + LG_ROW * 0.78;
-      const lx   = pair === 0 ? LG_X0 : LG_L1;
-      const vx   = pair === 0 ? LG_V0 : LG_V1;
-      const vw   = pair === 0 ? LG_VW0 : LG_VW1;
-      ctx.fillStyle = "#94a3b8"; ctx.font = `${F_LABEL}px Arial`; ctx.textAlign = "left";
-      ctx.fillText(f.label.toUpperCase(), lx, fy, LG_LW);
-      ctx.fillStyle = f.accent ? theme.color : "#1e293b"; ctx.font = `bold ${F_VALUE}px Arial`;
-      ctx.fillText(f.value, vx, fy, vw);
+      const fy = dY + i * LG_ROW + LG_ROW * 0.78;
+      ctx.fillStyle = "#64748b"; ctx.font = `600 ${F_LABEL}px Arial`; ctx.textAlign = "left";
+      ctx.fillText(f.label, LG_X0, fy, LG_LW);
+      ctx.fillStyle = f.accent ? theme.color : "#1e293b"; ctx.font = `500 ${F_VALUE}px Arial`;
+      ctx.fillText(`: ${f.value}`, LG_VX, fy, LG_VW);
     });
     if (gridRows > 0) dY += gridRows * LG_ROW + 5;
 
-    // Address — full-width row below grid
+    // Address — same 2-col format, value wraps up to 2 lines
     if (v("address")) {
       const aBase = dY + F_LABEL;
-      ctx.fillStyle = "#94a3b8"; ctx.font = `${F_LABEL}px Arial`; ctx.textAlign = "left";
-      ctx.fillText("ADDRESS", LG_X0, aBase, LG_LW);
-      ctx.fillStyle = "#475569"; ctx.font = `${F_SMALL}px Arial`;
-      const addrLines = wrapText(ctx, v("address"), W - PAD - LG_V0);
+      ctx.fillStyle = "#64748b"; ctx.font = `600 ${F_LABEL}px Arial`; ctx.textAlign = "left";
+      ctx.fillText("Address", LG_X0, aBase, LG_LW);
+      ctx.fillStyle = "#475569"; ctx.font = `500 ${F_SMALL}px Arial`;
+      const addrLines = wrapText(ctx, `: ${v("address")}`, LG_VW);
       addrLines.slice(0, 2).forEach((line, li) => {
-        ctx.fillText(line, LG_V0, aBase + li * (F_SMALL * 1.4), W - PAD - LG_V0);
+        ctx.fillText(line, LG_VX, aBase + li * (F_SMALL * 1.4), LG_VW);
       });
       dY += F_SMALL + F_SMALL * 1.4 + 7;
     }
