@@ -185,10 +185,10 @@ async function renderCardToCanvas(
 
   // Portrait layout constants (300x480) -- spec: 15/30/10/30/15
   const P_HEADER_H        = 72;                              // 15% of 480
-  const P_PHOTO_W         = 96;                              // passport-style width
-  const P_PHOTO_H         = 118;                             // passport-style height
+  const P_PHOTO_W         = 110;                             // passport-style width (20% increase)
+  const P_PHOTO_H         = 132;                             // passport-style height (20% increase)
   const P_PHOTO_X         = Math.round((W - P_PHOTO_W) / 2);
-  const P_PHOTO_Y         = P_HEADER_H + 13;
+  const P_PHOTO_Y         = P_HEADER_H + 6;                 // (144-132)/2 = 6px padding
   const P_PHOTO_SECTION_H = 144;                             // 30% of 480
   const P_NAME_Y          = P_HEADER_H + P_PHOTO_SECTION_H; // 216
   const P_NAME_H          = 48;                              // 10% of 480
@@ -266,12 +266,28 @@ async function renderCardToCanvas(
     ctx.font = `${F_SUB}px Arial`; ctx.textAlign = "right";
     ctx.fillText(SUBTITLE[orgType].toUpperCase(), W - PAD, HEADER_H * 0.68);
   } else {
-    ctx.fillStyle = "#fff"; ctx.textAlign = "center";
+    // Portrait header: school logo circle + org name centered as a group
+    const orgInitial2 = (v("organization") || "S").charAt(0).toUpperCase();
+    const orgText = v("organization") || "Organization";
+    const logoR = 16;
     ctx.font = `bold ${F_ORG}px Arial`;
-    ctx.fillText(v("organization") || "Organization", W / 2, P_HEADER_H * 0.50, W - PAD * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.font = `${F_SUB}px Arial`;
-    ctx.fillText(SUBTITLE[orgType].toUpperCase(), W / 2, P_HEADER_H * 0.76, W - PAD * 2);
+    const rawTW = ctx.measureText(orgText).width;
+    const textMaxW = W - PAD * 2 - logoR * 2 - 10;
+    const textW2 = Math.min(rawTW, textMaxW);
+    const groupW = logoR * 2 + 10 + textW2;
+    const groupStartX = Math.round((W - groupW) / 2);
+    const lCX = groupStartX + logoR;
+    const lCY = Math.round(P_HEADER_H * 0.42);
+    ctx.fillStyle = "rgba(255,255,255,0.18)";
+    ctx.beginPath(); ctx.arc(lCX, lCY, logoR, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = `bold 14px Arial`;
+    ctx.fillText(orgInitial2, lCX, lCY + 5);
+    const textBlockX = groupStartX + logoR * 2 + 10;
+    ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.font = `bold ${F_ORG}px Arial`;
+    ctx.fillText(orgText, textBlockX, P_HEADER_H * 0.44, textMaxW);
+    ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.font = `${F_SUB}px Arial`;
+    ctx.fillText(SUBTITLE[orgType].toUpperCase(), textBlockX, P_HEADER_H * 0.70, textMaxW);
     ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(PAD, P_HEADER_H - 6); ctx.lineTo(W - PAD, P_HEADER_H - 6); ctx.stroke();
   }
@@ -338,22 +354,35 @@ async function renderCardToCanvas(
     // Details section background (30%)
     ctx.fillStyle = "#fff"; ctx.fillRect(0, P_DETAILS_Y, W, P_DETAILS_H);
 
-    // Label : value rows, single column, left-aligned
-    const ROW_H = 22;
-    const LABEL_W = 68;
-    const COLON_X = PAD + LABEL_W + 3;
-    const VALUE_X = COLON_X + 8;
-    const VALUE_W = W - VALUE_X - PAD;
-    let detY = P_DETAILS_Y + 10;
-    pDetailRows.slice(0, 6).forEach(pf => {
-      ctx.fillStyle = "#64748b"; ctx.font = `${F_LABEL + 1}px Arial`; ctx.textAlign = "left";
-      ctx.fillText(pf.label, PAD, detY + F_LABEL + 1, LABEL_W);
-      ctx.fillStyle = "#94a3b8"; ctx.font = `${F_LABEL + 1}px Arial`;
-      ctx.fillText(":", COLON_X, detY + F_LABEL + 1);
-      ctx.fillStyle = "#1e293b"; ctx.font = `bold ${F_VALUE}px Arial`;
-      ctx.fillText(pf.value, VALUE_X, detY + F_VALUE, VALUE_W);
-      detY += ROW_H;
-    });
+    // 2-column grid: label 40% / value 60% per column
+    const COL_GAP2 = 8;
+    const COL_W2 = Math.floor((W - PAD * 2 - COL_GAP2) / 2);
+    const LBL_W2 = Math.floor(COL_W2 * 0.40);
+    const CLN_W2 = 6;
+    const VAL_OFF2 = LBL_W2 + CLN_W2;
+    const VAL_W2 = COL_W2 - VAL_OFF2;
+    const ROW_H2 = 24;
+
+    for (let ri2 = 0; ri2 < Math.min(Math.ceil(pDetailRows.length / 2), 4); ri2++) {
+      const rowY2 = P_DETAILS_Y + 10 + ri2 * ROW_H2;
+      const lf = pDetailRows[ri2 * 2];
+      if (lf) {
+        ctx.fillStyle = "#64748b"; ctx.font = `${F_LABEL + 1}px Arial`; ctx.textAlign = "left";
+        ctx.fillText(lf.label, PAD, rowY2 + F_LABEL + 1, LBL_W2);
+        ctx.fillStyle = "#94a3b8"; ctx.fillText(":", PAD + LBL_W2 + 2, rowY2 + F_LABEL + 1);
+        ctx.fillStyle = "#1e293b"; ctx.font = `bold ${F_VALUE}px Arial`;
+        ctx.fillText(lf.value, PAD + VAL_OFF2, rowY2 + F_VALUE, VAL_W2);
+      }
+      const rf = pDetailRows[ri2 * 2 + 1];
+      if (rf) {
+        const rx = PAD + COL_W2 + COL_GAP2;
+        ctx.fillStyle = "#64748b"; ctx.font = `${F_LABEL + 1}px Arial`; ctx.textAlign = "left";
+        ctx.fillText(rf.label, rx, rowY2 + F_LABEL + 1, LBL_W2);
+        ctx.fillStyle = "#94a3b8"; ctx.fillText(":", rx + LBL_W2 + 2, rowY2 + F_LABEL + 1);
+        ctx.fillStyle = "#1e293b"; ctx.font = `bold ${F_VALUE}px Arial`;
+        ctx.fillText(rf.value, rx + VAL_OFF2, rowY2 + F_VALUE, VAL_W2);
+      }
+    }
   }
 
   // â”€â”€ LANDSCAPE layout â€” photo-left, details-right â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -429,7 +458,7 @@ async function renderCardToCanvas(
     }
   }
 
-  // -- Footer (15%) with QR bottom-right for portrait --
+  // -- Footer (15%) — dates space-between, no QR --
   const footY = H - FOOTER_H;
   const fGrad = ctx.createLinearGradient(0, footY, W, H);
   fGrad.addColorStop(0, theme.from); fGrad.addColorStop(1, theme.to);
@@ -441,23 +470,10 @@ async function renderCardToCanvas(
     ctx.fillStyle = "#fff"; ctx.font = `bold ${F_FOOT}px Arial`; ctx.textAlign = "left";
     ctx.fillText(`Valid Until: ${v("expiryDate")}`, PAD, footY + FOOTER_H * 0.65);
   }
-
-  // QR placeholder in footer bottom-right (portrait only)
-  if (!isLandscape) {
-    const QR_SZ = 46;
-    const QR_X = W - PAD - QR_SZ;
-    const QR_Y = footY + Math.round((FOOTER_H - QR_SZ) / 2);
-    ctx.fillStyle = "#fff"; rr(ctx, QR_X, QR_Y, QR_SZ, QR_SZ, 4); ctx.fill();
-    const qrCells = [1,1,1,0,1, 1,0,1,0,0, 1,1,1,0,1, 0,0,0,1,0, 1,0,1,1,1];
-    const qrCellSz = (QR_SZ - 6) / 5;
-    qrCells.forEach((c, qi) => {
-      if (c) {
-        const qCol = qi % 5; const qRow = Math.floor(qi / 5);
-        ctx.fillStyle = "#1e293b";
-        ctx.fillRect(QR_X + 3 + qCol * qrCellSz, QR_Y + 3 + qRow * qrCellSz, qrCellSz - 1, qrCellSz - 1);
-      }
-    });
-  }
+  ctx.fillStyle = "rgba(255,255,255,0.40)"; ctx.font = `${F_FOOT}px Arial`; ctx.textAlign = "right";
+  ctx.fillText("ID CARD", W - PAD, footY + FOOTER_H * 0.48);
+  ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.font = `${F_FOOT - 1}px Arial`;
+  ctx.fillText("Secure", W - PAD, footY + FOOTER_H * 0.68);
   return canvas;
 }
 

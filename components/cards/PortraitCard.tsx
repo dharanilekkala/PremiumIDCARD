@@ -17,11 +17,11 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
 
   const orgInitial = (v("organization") || "S").charAt(0).toUpperCase();
 
-  // Passport-style photo: portrait-oriented, centered
-  const PHOTO_W = 96;
-  const PHOTO_H = 118;  // fits in 144px section (13px top + 118 + 13px bottom)
+  // Passport-style photo — 20% increase (96→110, 118→132), fits in 144px section with 6px padding
+  const PHOTO_W = 110;
+  const PHOTO_H = 132;
 
-  // Detail rows — label : value format, left-aligned, spec order
+  // Detail rows in spec order
   const detailRows: { label: string; value: string }[] = [
     v("idNumber")    ? { label: idLabel,        value: v("idNumber") }    : null,
     v("class")       ? { label: "Class",         value: v("class") }      : null,
@@ -30,10 +30,29 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
     v("address")     ? { label: "Address",       value: v("address") }    : null,
     v("department")  ? { label: "Department",    value: v("department") } : null,
     v("dob")         ? { label: "DOB",           value: v("dob") }        : null,
-    v("designation") ? { label: "Role",          value: v("designation") } : null,
   ].filter(Boolean) as { label: string; value: string }[];
 
-  const QR_DOTS = [1,1,1,0,1, 1,0,1,0,0, 1,1,1,0,1, 0,0,0,1,0, 1,0,1,1,1];
+  // Pair rows for 2-column grid
+  const pairedRows: [typeof detailRows[0], typeof detailRows[0] | null][] = [];
+  for (let i = 0; i < detailRows.length; i += 2) {
+    pairedRows.push([detailRows[i], detailRows[i + 1] ?? null]);
+  }
+
+  const colCellStyle: React.CSSProperties = {
+    flex: 1, display: "flex", alignItems: "flex-start", minWidth: 0,
+  };
+  const labelStyle: React.CSSProperties = {
+    fontSize: 7, color: "#64748b", fontWeight: 600,
+    width: "42%", flexShrink: 0, lineHeight: 1.5,
+    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+  };
+  const colonStyle: React.CSSProperties = {
+    fontSize: 7, color: "#94a3b8", flexShrink: 0, marginRight: 2,
+  };
+  const valueStyle: React.CSSProperties = {
+    fontSize: 8, color: "#1e293b", fontWeight: 700, lineHeight: 1.5,
+    flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+  };
 
   return (
     <div style={{
@@ -46,37 +65,38 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
       display: "flex", flexDirection: "column",
     }}>
 
-      {/* ── Header 15% = 72px ── */}
+      {/* Header 15% = 72px — logo circle + school name centered */}
       <div style={{
         background: `linear-gradient(135deg, ${theme.from} 0%, ${theme.to} 100%)`,
         height: 72, flexShrink: 0,
-        padding: "10px 14px",
-        display: "flex", alignItems: "center", gap: 10,
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+        padding: "0 14px",
       }}>
         <div style={{
-          width: 46, height: 46, borderRadius: "50%",
+          width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
           background: "rgba(255,255,255,0.18)", border: "2px solid rgba(255,255,255,0.45)",
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
         }}>
-          <span style={{ color: "#fff", fontWeight: 900, fontSize: 18 }}>{orgInitial}</span>
+          <span style={{ color: "#fff", fontWeight: 900, fontSize: 16 }}>{orgInitial}</span>
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
           <div style={{
-            color: "#fff", fontWeight: 900, fontSize: 11.5, lineHeight: 1.25,
+            color: "#fff", fontWeight: 900, fontSize: 11,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            maxWidth: 190, lineHeight: 1.25,
           }}>
             {v("organization") || "Organization Name"}
           </div>
-          <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 7, marginTop: 3, letterSpacing: 1.6, textTransform: "uppercase" }}>
+          <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 7, marginTop: 2, letterSpacing: 1.4, textTransform: "uppercase" }}>
             {subtitle}
           </div>
-          <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 6.5, marginTop: 2 }}>
+          <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 6.5, marginTop: 1 }}>
             Student Identity Card
           </div>
         </div>
       </div>
 
-      {/* ── Photo 30% = 144px — passport style, centered ── */}
+      {/* Photo 30% = 144px — passport style, centered, larger */}
       <div style={{
         height: 144, flexShrink: 0,
         background: "#f8fafc",
@@ -98,19 +118,19 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
             />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <User style={{ color: "#94a3b8", width: 28, height: 28 }} />
+              <User style={{ color: "#94a3b8", width: 30, height: 30 }} />
               <span style={{ fontSize: 6.5, color: "#94a3b8", letterSpacing: 1, textTransform: "uppercase" }}>Photo</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Name 10% = 48px ── */}
+      {/* Name 10% = 48px */}
       <div style={{
         height: 48, flexShrink: 0,
         background: "#fff",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        padding: "0 14px",
+        padding: "0 12px",
         borderBottom: `1.5px solid ${theme.color}22`,
       }}>
         <div style={{
@@ -131,44 +151,41 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
         )}
       </div>
 
-      {/* ── Details 30% = 144px — label : value rows, left-aligned ── */}
+      {/* Details 30% = 144px — 2-column grid, label 40% / value 60% per column */}
       <div style={{
         height: 144, flexShrink: 0,
         background: "#fff",
-        padding: "8px 14px 6px",
+        padding: "8px 12px 6px",
         overflow: "hidden",
-        display: "flex", flexDirection: "column", gap: 2,
+        display: "flex", flexDirection: "column", gap: 5,
       }}>
-        {detailRows.slice(0, 6).map(f => (
-          <div key={f.label} style={{
-            display: "flex", alignItems: "baseline", gap: 0, minHeight: 20,
-          }}>
-            <span style={{
-              fontSize: 7.5, color: "#64748b", fontWeight: 600,
-              width: 72, flexShrink: 0, lineHeight: 1.5,
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            }}>
-              {f.label}
-            </span>
-            <span style={{ fontSize: 7.5, color: "#94a3b8", marginRight: 5, flexShrink: 0 }}>:</span>
-            <span style={{
-              fontSize: 8.5, color: "#1e293b", fontWeight: 700, lineHeight: 1.5, flex: 1,
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            }}>
-              {f.value}
-            </span>
+        {pairedRows.slice(0, 4).map((pair, ri) => (
+          <div key={ri} style={{ display: "flex", gap: 8, minHeight: 26 }}>
+            <div style={colCellStyle}>
+              <span style={labelStyle}>{pair[0].label}</span>
+              <span style={colonStyle}>:</span>
+              <span style={valueStyle}>{pair[0].value}</span>
+            </div>
+            {pair[1] ? (
+              <div style={colCellStyle}>
+                <span style={labelStyle}>{pair[1].label}</span>
+                <span style={colonStyle}>:</span>
+                <span style={valueStyle}>{pair[1].value}</span>
+              </div>
+            ) : (
+              <div style={{ flex: 1 }} />
+            )}
           </div>
         ))}
       </div>
 
-      {/* ── Footer 15% = 72px — gradient with QR bottom-right ── */}
+      {/* Footer 15% = 72px — dates space-between, no QR */}
       <div style={{
         height: 72, flexShrink: 0,
         background: `linear-gradient(135deg, ${theme.from} 0%, ${theme.to} 100%)`,
-        padding: "10px 14px",
+        padding: "0 14px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
-        {/* Dates */}
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
           <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 7, lineHeight: 1 }}>
             {v("issueDate") ? `Issue Date: ${v("issueDate")}` : "IDForge AI · Secure Identity"}
@@ -178,17 +195,13 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
             : <span style={{ color: "rgba(255,255,255,0.38)", fontSize: 6.5, lineHeight: 1 }}>Not for commercial use</span>
           }
         </div>
-
-        {/* QR placeholder — 5×5 grid */}
-        <div style={{
-          width: 48, height: 48, flexShrink: 0,
-          background: "#fff", borderRadius: 5, padding: 4,
-          display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 1,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
-        }}>
-          {QR_DOTS.map((c, i) => (
-            <div key={i} style={{ background: c ? "#1e293b" : "transparent", borderRadius: 0.5 }} />
-          ))}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+          <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 6, lineHeight: 1, textTransform: "uppercase", letterSpacing: 0.8 }}>
+            ID Card
+          </span>
+          <span style={{ color: "rgba(255,255,255,0.28)", fontSize: 5.5, lineHeight: 1 }}>
+            Secure · Official
+          </span>
         </div>
       </div>
     </div>
