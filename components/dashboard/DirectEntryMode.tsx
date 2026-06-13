@@ -183,18 +183,18 @@ async function renderCardToCanvas(
   const W = isLandscape ? 480 : 300;
   const H = isLandscape ? 300 : 480;
 
-  // Portrait layout constants (300x480) -- spec: 15/30/10/30/15
-  const P_HEADER_H        = 72;                              // 15% of 480
-  const P_PHOTO_W         = 110;                             // passport-style width (20% increase)
-  const P_PHOTO_H         = 132;                             // passport-style height (20% increase)
+  // Portrait layout constants (300x480) — header 60 / photo 144 / name 40 / details 198 / footer 38
+  const P_HEADER_H        = 60;                              // compact header
+  const P_PHOTO_W         = 105;                             // 35% of card width
+  const P_PHOTO_H         = 130;                             // passport-style height
   const P_PHOTO_X         = Math.round((W - P_PHOTO_W) / 2);
-  const P_PHOTO_Y         = P_HEADER_H + 6;                 // (144-132)/2 = 6px padding
+  const P_PHOTO_Y         = P_HEADER_H + 7;                 // (144-130)/2 = 7px padding
   const P_PHOTO_SECTION_H = 144;                             // 30% of 480
-  const P_NAME_Y          = P_HEADER_H + P_PHOTO_SECTION_H; // 216
-  const P_NAME_H          = 48;                              // 10% of 480
-  const P_DETAILS_Y       = P_NAME_Y + P_NAME_H;            // 264
-  const P_DETAILS_H       = 144;                             // 30% of 480
-  const P_FOOTER_H        = 72;                              // 15% of 480
+  const P_NAME_Y          = P_HEADER_H + P_PHOTO_SECTION_H; // 204
+  const P_NAME_H          = 40;                              // compact name section
+  const P_DETAILS_Y       = P_NAME_Y + P_NAME_H;            // 244
+  const P_DETAILS_H       = 198;                             // remaining space after other sections
+  const P_FOOTER_H        = 38;                              // 8% of 480
 
   // Landscape layout constants (480Ã—300)
   const L_HEADER_H  = 75;
@@ -266,30 +266,11 @@ async function renderCardToCanvas(
     ctx.font = `${F_SUB}px Arial`; ctx.textAlign = "right";
     ctx.fillText(SUBTITLE[orgType].toUpperCase(), W - PAD, HEADER_H * 0.68);
   } else {
-    // Portrait header: school logo circle + org name centered as a group
-    const orgInitial2 = (v("organization") || "S").charAt(0).toUpperCase();
-    const orgText = v("organization") || "Organization";
-    const logoR = 16;
-    ctx.font = `bold ${F_ORG}px Arial`;
-    const rawTW = ctx.measureText(orgText).width;
-    const textMaxW = W - PAD * 2 - logoR * 2 - 10;
-    const textW2 = Math.min(rawTW, textMaxW);
-    const groupW = logoR * 2 + 10 + textW2;
-    const groupStartX = Math.round((W - groupW) / 2);
-    const lCX = groupStartX + logoR;
-    const lCY = Math.round(P_HEADER_H * 0.42);
-    ctx.fillStyle = "rgba(255,255,255,0.18)";
-    ctx.beginPath(); ctx.arc(lCX, lCY, logoR, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = `bold 14px Arial`;
-    ctx.fillText(orgInitial2, lCX, lCY + 5);
-    const textBlockX = groupStartX + logoR * 2 + 10;
-    ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.font = `bold ${F_ORG}px Arial`;
-    ctx.fillText(orgText, textBlockX, P_HEADER_H * 0.44, textMaxW);
-    ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.font = `${F_SUB}px Arial`;
-    ctx.fillText(SUBTITLE[orgType].toUpperCase(), textBlockX, P_HEADER_H * 0.70, textMaxW);
-    ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(PAD, P_HEADER_H - 6); ctx.lineTo(W - PAD, P_HEADER_H - 6); ctx.stroke();
+    // Portrait header: org name centered, no logo placeholder
+    ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = `bold ${F_ORG}px Arial`;
+    ctx.fillText(v("organization") || "Organization", W / 2, P_HEADER_H * 0.52, W - PAD * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.75)"; ctx.font = `${F_SUB}px Arial`;
+    ctx.fillText(SUBTITLE[orgType].toUpperCase(), W / 2, P_HEADER_H * 0.82, W - PAD * 2);
   }
 
   // â”€â”€ Load photo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -351,38 +332,33 @@ async function renderCardToCanvas(
       ctx.fillText(v("designation"), W / 2, P_NAME_Y + P_NAME_H * 0.88, W - PAD * 2);
     }
 
-    // Details section background (30%)
+    // Details section background
     ctx.fillStyle = "#fff"; ctx.fillRect(0, P_DETAILS_Y, W, P_DETAILS_H);
 
-    // 2-column grid: label 40% / value 60% per column
-    const COL_GAP2 = 8;
-    const COL_W2 = Math.floor((W - PAD * 2 - COL_GAP2) / 2);
-    const LBL_W2 = Math.floor(COL_W2 * 0.40);
-    const CLN_W2 = 6;
-    const VAL_OFF2 = LBL_W2 + CLN_W2;
-    const VAL_W2 = COL_W2 - VAL_OFF2;
-    const ROW_H2 = 24;
+    // Single column: 110px label fixed + colon + value (address wraps to 2 lines)
+    const LBL_W3 = 110;
+    const CLN3_X = PAD + LBL_W3 + 2;
+    const VAL3_X = CLN3_X + 7;
+    const VAL3_W = W - VAL3_X - PAD;
+    const ROW_H3 = 20;
+    let detY3 = P_DETAILS_Y + 10;
 
-    for (let ri2 = 0; ri2 < Math.min(Math.ceil(pDetailRows.length / 2), 4); ri2++) {
-      const rowY2 = P_DETAILS_Y + 10 + ri2 * ROW_H2;
-      const lf = pDetailRows[ri2 * 2];
-      if (lf) {
-        ctx.fillStyle = "#64748b"; ctx.font = `${F_LABEL + 1}px Arial`; ctx.textAlign = "left";
-        ctx.fillText(lf.label, PAD, rowY2 + F_LABEL + 1, LBL_W2);
-        ctx.fillStyle = "#94a3b8"; ctx.fillText(":", PAD + LBL_W2 + 2, rowY2 + F_LABEL + 1);
-        ctx.fillStyle = "#1e293b"; ctx.font = `bold ${F_VALUE}px Arial`;
-        ctx.fillText(lf.value, PAD + VAL_OFF2, rowY2 + F_VALUE, VAL_W2);
+    pDetailRows.slice(0, 8).forEach(pf => {
+      ctx.fillStyle = "#64748b"; ctx.font = `${F_LABEL + 1}px Arial`; ctx.textAlign = "left";
+      ctx.fillText(pf.label, PAD, detY3 + F_LABEL + 1, LBL_W3);
+      ctx.fillStyle = "#94a3b8"; ctx.fillText(":", CLN3_X, detY3 + F_LABEL + 1);
+      ctx.fillStyle = "#1e293b"; ctx.font = `bold ${F_VALUE}px Arial`;
+      if (pf.label === "Address") {
+        const addrLines = wrapText(ctx, pf.value, VAL3_W);
+        addrLines.slice(0, 2).forEach((line, li) => {
+          ctx.fillText(line, VAL3_X, detY3 + F_VALUE + li * (F_VALUE + 2), VAL3_W);
+        });
+        detY3 += ROW_H3 + (Math.min(addrLines.length, 2) - 1) * (F_VALUE + 2) + 2;
+      } else {
+        ctx.fillText(pf.value, VAL3_X, detY3 + F_VALUE, VAL3_W);
+        detY3 += ROW_H3;
       }
-      const rf = pDetailRows[ri2 * 2 + 1];
-      if (rf) {
-        const rx = PAD + COL_W2 + COL_GAP2;
-        ctx.fillStyle = "#64748b"; ctx.font = `${F_LABEL + 1}px Arial`; ctx.textAlign = "left";
-        ctx.fillText(rf.label, rx, rowY2 + F_LABEL + 1, LBL_W2);
-        ctx.fillStyle = "#94a3b8"; ctx.fillText(":", rx + LBL_W2 + 2, rowY2 + F_LABEL + 1);
-        ctx.fillStyle = "#1e293b"; ctx.font = `bold ${F_VALUE}px Arial`;
-        ctx.fillText(rf.value, rx + VAL_OFF2, rowY2 + F_VALUE, VAL_W2);
-      }
-    }
+    });
   }
 
   // â”€â”€ LANDSCAPE layout â€” photo-left, details-right â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -458,26 +434,18 @@ async function renderCardToCanvas(
     }
   }
 
-  // -- Footer (15%) — dates space-between, no QR --
+  // -- Footer (8%) — dates only, no signature --
   const footY = H - FOOTER_H;
   const fGrad = ctx.createLinearGradient(0, footY, W, H);
   fGrad.addColorStop(0, theme.from); fGrad.addColorStop(1, theme.to);
   ctx.fillStyle = fGrad; ctx.fillRect(0, footY, W, FOOTER_H);
 
-  ctx.fillStyle = "rgba(255,255,255,0.65)"; ctx.font = `${F_FOOT}px Arial`; ctx.textAlign = "left";
-  ctx.fillText(v("issueDate") ? `Issue Date: ${v("issueDate")}` : "IDForge AI", PAD, footY + FOOTER_H * 0.40);
+  ctx.fillStyle = "rgba(255,255,255,0.70)"; ctx.font = `${F_FOOT}px Arial`; ctx.textAlign = "left";
+  ctx.fillText(v("issueDate") ? `Issue: ${v("issueDate")}` : "IDForge AI", PAD, footY + FOOTER_H * 0.62);
   if (v("expiryDate")) {
-    ctx.fillStyle = "#fff"; ctx.font = `bold ${F_FOOT}px Arial`; ctx.textAlign = "left";
-    ctx.fillText(`Valid Until: ${v("expiryDate")}`, PAD, footY + FOOTER_H * 0.65);
+    ctx.fillStyle = "#fff"; ctx.font = `bold ${F_FOOT}px Arial`; ctx.textAlign = "right";
+    ctx.fillText(`Valid: ${v("expiryDate")}`, W - PAD, footY + FOOTER_H * 0.62);
   }
-  // Signature area — right side of footer
-  const SIG_W = 62;
-  const SIG_X = W - PAD - SIG_W;
-  const SIG_LINE_Y = footY + Math.round(FOOTER_H * 0.52);
-  ctx.strokeStyle = "rgba(255,255,255,0.50)"; ctx.lineWidth = 0.8;
-  ctx.beginPath(); ctx.moveTo(SIG_X, SIG_LINE_Y); ctx.lineTo(SIG_X + SIG_W, SIG_LINE_Y); ctx.stroke();
-  ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.font = `6px Arial`; ctx.textAlign = "center";
-  ctx.fillText("Signature", SIG_X + SIG_W / 2, SIG_LINE_Y + 9);
   return canvas;
 }
 

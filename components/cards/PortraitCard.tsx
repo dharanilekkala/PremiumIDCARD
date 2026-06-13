@@ -11,48 +11,19 @@ interface Props {
 }
 
 // CR80 Portrait — 300×480px
-// Header(15%=72px) → Photo(30%=144px) → Name(10%=48px) → Details(30%=144px) → Footer(15%=72px)
+// Header(60px) → Photo(144px) → Name(40px) → Details(flex~198px) → Footer(38px)
 export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: Props) {
   const v = (k: string) => data[k]?.trim() ?? "";
 
-  const orgInitial = (v("organization") || "S").charAt(0).toUpperCase();
-
-  // Passport-style photo — 20% increase (96→110, 118→132), fits in 144px section with 6px padding
-  const PHOTO_W = 110;
-  const PHOTO_H = 132;
-
-  // Detail rows in spec order
-  const detailRows: { label: string; value: string }[] = [
-    v("idNumber")    ? { label: idLabel,        value: v("idNumber") }    : null,
-    v("class")       ? { label: "Class",         value: v("class") }      : null,
-    v("bloodGroup")  ? { label: "Blood Group",   value: v("bloodGroup") } : null,
-    v("phone")       ? { label: "Phone",         value: v("phone") }      : null,
-    v("address")     ? { label: "Address",       value: v("address") }    : null,
-    v("department")  ? { label: "Department",    value: v("department") } : null,
-    v("dob")         ? { label: "DOB",           value: v("dob") }        : null,
-  ].filter(Boolean) as { label: string; value: string }[];
-
-  // Pair rows for 2-column grid
-  const pairedRows: [typeof detailRows[0], typeof detailRows[0] | null][] = [];
-  for (let i = 0; i < detailRows.length; i += 2) {
-    pairedRows.push([detailRows[i], detailRows[i + 1] ?? null]);
-  }
-
-  const colCellStyle: React.CSSProperties = {
-    flex: 1, display: "flex", alignItems: "flex-start", minWidth: 0,
-  };
-  const labelStyle: React.CSSProperties = {
-    fontSize: 7, color: "#64748b", fontWeight: 600,
-    width: "42%", flexShrink: 0, lineHeight: 1.5,
-    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-  };
-  const colonStyle: React.CSSProperties = {
-    fontSize: 7, color: "#94a3b8", flexShrink: 0, marginRight: 2,
-  };
-  const valueStyle: React.CSSProperties = {
-    fontSize: 8, color: "#1e293b", fontWeight: 700, lineHeight: 1.5,
-    flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-  };
+  const detailRows: { label: string; value: string; wrap?: boolean }[] = ([
+    v("idNumber")   ? { label: idLabel,      value: v("idNumber") }              : null,
+    v("class")      ? { label: "Class",       value: v("class") }                : null,
+    v("bloodGroup") ? { label: "Blood Group", value: v("bloodGroup") }           : null,
+    v("phone")      ? { label: "Phone",       value: v("phone") }                : null,
+    v("address")    ? { label: "Address",     value: v("address"), wrap: true }  : null,
+    v("department") ? { label: "Department",  value: v("department") }           : null,
+    v("dob")        ? { label: "DOB",         value: v("dob") }                  : null,
+  ] as ({ label: string; value: string; wrap?: boolean } | null)[]).filter(Boolean) as { label: string; value: string; wrap?: boolean }[];
 
   return (
     <div style={{
@@ -65,38 +36,26 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
       display: "flex", flexDirection: "column",
     }}>
 
-      {/* Header 15% = 72px — logo circle + school name centered */}
+      {/* Header 60px — org name + subtitle centered, no logo */}
       <div style={{
+        height: 60, flexShrink: 0,
         background: `linear-gradient(135deg, ${theme.from} 0%, ${theme.to} 100%)`,
-        height: 72, flexShrink: 0,
-        display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-        padding: "0 14px",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        gap: 2, padding: "0 16px",
       }}>
         <div style={{
-          width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
-          background: "rgba(255,255,255,0.18)", border: "2px solid rgba(255,255,255,0.45)",
-          display: "flex", alignItems: "center", justifyContent: "center",
+          color: "#fff", fontWeight: 900, fontSize: 12, textAlign: "center",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          maxWidth: "100%", lineHeight: 1.2,
         }}>
-          <span style={{ color: "#fff", fontWeight: 900, fontSize: 16 }}>{orgInitial}</span>
+          {v("organization") || "Organization Name"}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
-          <div style={{
-            color: "#fff", fontWeight: 900, fontSize: 11,
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            maxWidth: 190, lineHeight: 1.25,
-          }}>
-            {v("organization") || "Organization Name"}
-          </div>
-          <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 7, marginTop: 2, letterSpacing: 1.4, textTransform: "uppercase" }}>
-            {subtitle}
-          </div>
-          <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 6.5, marginTop: 1 }}>
-            Student Identity Card
-          </div>
+        <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 7, letterSpacing: 1.6, textTransform: "uppercase" }}>
+          {subtitle}
         </div>
       </div>
 
-      {/* Photo 30% = 144px — passport style, centered, larger */}
+      {/* Photo 144px — 105×130px passport style */}
       <div style={{
         height: 144, flexShrink: 0,
         background: "#f8fafc",
@@ -104,7 +63,7 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
         borderBottom: `1px solid ${theme.color}22`,
       }}>
         <div style={{
-          width: PHOTO_W, height: PHOTO_H,
+          width: 105, height: 130,
           borderRadius: 6, overflow: "hidden",
           border: `2.5px solid ${theme.color}55`,
           background: "#dde3ea",
@@ -125,24 +84,24 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
         </div>
       </div>
 
-      {/* Name 10% = 48px */}
+      {/* Name 40px */}
       <div style={{
-        height: 48, flexShrink: 0,
+        height: 40, flexShrink: 0,
         background: "#fff",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         padding: "0 12px",
         borderBottom: `1.5px solid ${theme.color}22`,
       }}>
         <div style={{
-          fontSize: 15, fontWeight: 900, color: "#0f172a",
+          fontSize: 14, fontWeight: 900, color: "#0f172a",
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%",
           lineHeight: 1.2,
         }}>
-          {v("name") || <span style={{ color: "#cbd5e1", fontWeight: 400, fontSize: 12 }}>Student Name</span>}
+          {v("name") || <span style={{ color: "#cbd5e1", fontWeight: 400, fontSize: 11 }}>Student Name</span>}
         </div>
         {v("designation") && (
           <div style={{
-            fontSize: 7, color: theme.color, fontWeight: 700, marginTop: 2,
+            fontSize: 7, color: theme.color, fontWeight: 700, marginTop: 1,
             textTransform: "uppercase", letterSpacing: 0.8,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%",
           }}>
@@ -151,56 +110,48 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
         )}
       </div>
 
-      {/* Details 30% = 144px — 2-column grid, label 40% / value 60% per column */}
+      {/* Details flex — single-col, 110px label, address wraps 2 lines */}
       <div style={{
-        height: 144, flexShrink: 0,
+        flex: 1,
         background: "#fff",
         padding: "8px 12px 6px",
         overflow: "hidden",
-        display: "flex", flexDirection: "column", gap: 5,
+        display: "flex", flexDirection: "column", gap: 4,
       }}>
-        {pairedRows.slice(0, 4).map((pair, ri) => (
-          <div key={ri} style={{ display: "flex", gap: 8, minHeight: 26 }}>
-            <div style={colCellStyle}>
-              <span style={labelStyle}>{pair[0].label}</span>
-              <span style={colonStyle}>:</span>
-              <span style={valueStyle}>{pair[0].value}</span>
-            </div>
-            {pair[1] ? (
-              <div style={colCellStyle}>
-                <span style={labelStyle}>{pair[1].label}</span>
-                <span style={colonStyle}>:</span>
-                <span style={valueStyle}>{pair[1].value}</span>
-              </div>
-            ) : (
-              <div style={{ flex: 1 }} />
-            )}
+        {detailRows.map((f, i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 2, alignItems: "flex-start" }}>
+            <span style={{ fontSize: 7.5, color: "#64748b", fontWeight: 600, lineHeight: 1.5, whiteSpace: "nowrap" }}>
+              {f.label}
+            </span>
+            <span style={{
+              fontSize: 7.5, color: "#1e293b", fontWeight: 700, lineHeight: 1.5,
+              overflow: "hidden",
+              whiteSpace: f.wrap ? "normal" : "nowrap",
+              display: f.wrap ? "-webkit-box" : undefined,
+              WebkitLineClamp: f.wrap ? 2 : undefined,
+              WebkitBoxOrient: f.wrap ? "vertical" : undefined,
+            } as React.CSSProperties}>
+              : {f.value}
+            </span>
           </div>
         ))}
       </div>
 
-      {/* Footer 15% = 72px — dates space-between, no QR */}
+      {/* Footer 38px — dates only, no signature */}
       <div style={{
-        height: 72, flexShrink: 0,
+        height: 38, flexShrink: 0,
         background: `linear-gradient(135deg, ${theme.from} 0%, ${theme.to} 100%)`,
         padding: "0 14px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 7, lineHeight: 1 }}>
-            {v("issueDate") ? `Issue Date: ${v("issueDate")}` : "IDForge AI · Secure Identity"}
+        <span style={{ color: "rgba(255,255,255,0.70)", fontSize: 7 }}>
+          {v("issueDate") ? `Issue: ${v("issueDate")}` : "IDForge AI"}
+        </span>
+        {v("expiryDate") && (
+          <span style={{ color: "#fff", fontSize: 7, fontWeight: 700 }}>
+            Valid: {v("expiryDate")}
           </span>
-          {v("expiryDate")
-            ? <span style={{ color: "#fff", fontSize: 7.5, fontWeight: 700, lineHeight: 1 }}>Valid Until: {v("expiryDate")}</span>
-            : <span style={{ color: "rgba(255,255,255,0.38)", fontSize: 6.5, lineHeight: 1 }}>Not for commercial use</span>
-          }
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 72 }}>
-          <div style={{ width: 68, height: 18, borderBottom: "1px solid rgba(255,255,255,0.50)" }} />
-          <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 6, letterSpacing: 0.8, textTransform: "uppercase" }}>
-            Signature
-          </span>
-        </div>
+        )}
       </div>
     </div>
   );
