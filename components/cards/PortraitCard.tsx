@@ -36,22 +36,35 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
       display: "flex", flexDirection: "column",
     }}>
 
-      {/* Header 60px — org name + subtitle centered, no logo */}
+      {/* Header 60px — logo circle + org name + subtitle */}
       <div style={{
         height: 60, flexShrink: 0,
         background: `linear-gradient(135deg, ${theme.from} 0%, ${theme.to} 100%)`,
-        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        gap: 2, padding: "0 16px",
+        display: "flex", alignItems: "center",
+        gap: 8, padding: "0 12px",
       }}>
+        {/* Logo initial */}
         <div style={{
-          color: "#fff", fontWeight: 900, fontSize: 12, textAlign: "center",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          maxWidth: "100%", lineHeight: 1.2,
+          width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
+          background: "rgba(255,255,255,0.18)", border: "1.5px solid rgba(255,255,255,0.38)",
+          display: "flex", alignItems: "center", justifyContent: "center",
         }}>
-          {v("organization") || "Organization Name"}
+          <span style={{ color: "#fff", fontWeight: 900, fontSize: 13 }}>
+            {(v("organization") || "O").charAt(0).toUpperCase()}
+          </span>
         </div>
-        <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 7, letterSpacing: 1.6, textTransform: "uppercase" }}>
-          {subtitle}
+        {/* Org info */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0, flex: 1 }}>
+          <div style={{
+            color: "#fff", fontWeight: 900, fontSize: 11,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            maxWidth: "100%", lineHeight: 1.2,
+          }}>
+            {v("organization") || "Organization Name"}
+          </div>
+          <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 6.5, letterSpacing: 1.3, textTransform: "uppercase", marginTop: 2 }}>
+            {subtitle}
+          </div>
         </div>
       </div>
 

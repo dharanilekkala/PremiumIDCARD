@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   GraduationCap, Building2, Stethoscope, PartyPopper,
-  Camera, Upload, X, Download, ArrowLeft, RefreshCw,
+  Camera, Upload, X, Download, ArrowLeft, RefreshCw, Crop,
   User, Check, Loader2, ChevronRight, Image as ImageIcon,
   Phone, Mail, MapPin, Calendar, Droplets, ShieldAlert,
   Hash, Briefcase, Layers, FileText, RectangleVertical, RectangleHorizontal,
@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import PortraitCard  from "@/components/cards/PortraitCard";
 import LandscapeCard from "@/components/cards/LandscapeCard";
+import PhotoEditor   from "@/components/PhotoEditor";
 
 // â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type OrgType = "school" | "office" | "hospital" | "event";
@@ -266,11 +267,20 @@ async function renderCardToCanvas(
     ctx.font = `${F_SUB}px Arial`; ctx.textAlign = "right";
     ctx.fillText(SUBTITLE[orgType].toUpperCase(), W - PAD, HEADER_H * 0.68);
   } else {
-    // Portrait header: org name centered, no logo placeholder
-    ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = `bold ${F_ORG}px Arial`;
-    ctx.fillText(v("organization") || "Organization", W / 2, P_HEADER_H * 0.52, W - PAD * 2);
+    // Portrait header: logo circle + org name + subtitle (left-aligned)
+    const LOGO_R  = 15;
+    const LOGO_CX = PAD + LOGO_R;
+    const LOGO_CY = P_HEADER_H / 2;
+    ctx.beginPath(); ctx.arc(LOGO_CX, LOGO_CY, LOGO_R, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.18)"; ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = `bold 13px Arial`;
+    ctx.fillText((v("organization") || "O").charAt(0).toUpperCase(), LOGO_CX, LOGO_CY + 4.5);
+    const TX = PAD + LOGO_R * 2 + 8;
+    ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.font = `bold ${F_ORG}px Arial`;
+    ctx.fillText(v("organization") || "Organization", TX, P_HEADER_H * 0.44, W - TX - PAD);
     ctx.fillStyle = "rgba(255,255,255,0.75)"; ctx.font = `${F_SUB}px Arial`;
-    ctx.fillText(SUBTITLE[orgType].toUpperCase(), W / 2, P_HEADER_H * 0.82, W - PAD * 2);
+    ctx.fillText(SUBTITLE[orgType].toUpperCase(), TX, P_HEADER_H * 0.76, W - TX - PAD);
   }
 
   // â”€â”€ Load photo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -465,6 +475,7 @@ export default function DirectEntryMode({ onBack }: DirectEntryModeProps) {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [zoomMult, setZoomMult]   = useState(1.0);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+  const [photoEditorOpen, setPhotoEditorOpen] = useState(false);
 
   const photoInputRef    = useRef<HTMLInputElement>(null);
   const cameraInputRef   = useRef<HTMLInputElement>(null);
@@ -694,9 +705,17 @@ export default function DirectEntryMode({ onBack }: DirectEntryModeProps) {
             <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoInput} />
             <input ref={cameraInputRef} type="file" accept="image/*" capture="user" className="hidden" onChange={handlePhotoInput} />
             {photo && (
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <button onClick={() => photoInputRef.current?.click()} className="flex items-center justify-center gap-1.5 h-8 rounded-lg bg-white/5 border border-white/10 text-white/50 text-xs font-bold hover:bg-white/10 hover:text-white transition-all"><Upload className="w-3 h-3" /> Upload New</button>
-                <button onClick={startCamera} className="flex items-center justify-center gap-1.5 h-8 rounded-lg bg-white/5 border border-white/10 text-white/50 text-xs font-bold hover:bg-white/10 hover:text-white transition-all"><Camera className="w-3 h-3" /> Retake</button>
+              <div className="space-y-1.5 mt-2">
+                <button
+                  onClick={() => setPhotoEditorOpen(true)}
+                  className="w-full flex items-center justify-center gap-1.5 h-9 rounded-xl text-white text-xs font-black transition-all"
+                  style={{ background: `linear-gradient(135deg, ${selectedOrg.from}cc, ${selectedOrg.to}cc)` }}>
+                  <Crop className="w-3.5 h-3.5" /> Edit Photo
+                </button>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button onClick={() => photoInputRef.current?.click()} className="flex items-center justify-center gap-1 h-8 rounded-lg bg-white/5 border border-white/10 text-white/50 text-xs font-bold hover:bg-white/10 hover:text-white transition-all"><Upload className="w-3 h-3" /> Upload New</button>
+                  <button onClick={startCamera} className="flex items-center justify-center gap-1 h-8 rounded-lg bg-white/5 border border-white/10 text-white/50 text-xs font-bold hover:bg-white/10 hover:text-white transition-all"><Camera className="w-3 h-3" /> Retake</button>
+                </div>
               </div>
             )}
           </div>
@@ -834,6 +853,18 @@ export default function DirectEntryMode({ onBack }: DirectEntryModeProps) {
         </div>
       </div>
     </div>
+
+    {/* â”€â”€ Photo Editor Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+    <AnimatePresence>
+      {photoEditorOpen && photo && (
+        <PhotoEditor
+          src={photo}
+          accent={{ from: selectedOrg.from, to: selectedOrg.to }}
+          onApply={dataUrl => { setPhoto(dataUrl); setPhotoEditorOpen(false); }}
+          onClose={() => setPhotoEditorOpen(false)}
+        />
+      )}
+    </AnimatePresence>
 
     {/* â”€â”€ Webcam Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
     <AnimatePresence>
