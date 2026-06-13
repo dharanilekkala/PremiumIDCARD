@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   GraduationCap, Building2, Stethoscope, PartyPopper,
@@ -183,16 +183,18 @@ async function renderCardToCanvas(
   const W = isLandscape ? 480 : 300;
   const H = isLandscape ? 300 : 480;
 
-  // Portrait layout constants (300Ã—480)
-  const P_HEADER_H        = 72;                             // 15% of 480
-  const P_PHOTO_W         = 210;                            // 70% of 300px
-  const P_PHOTO_H         = 158;                            // matches component
+  // Portrait layout constants (300x480) -- spec: 15/30/10/30/15
+  const P_HEADER_H        = 72;                              // 15% of 480
+  const P_PHOTO_W         = 96;                              // passport-style width
+  const P_PHOTO_H         = 118;                             // passport-style height
   const P_PHOTO_X         = Math.round((W - P_PHOTO_W) / 2);
-  const P_PHOTO_Y         = P_HEADER_H + 12;
-  const P_PHOTO_SECTION_H = 12 + P_PHOTO_H + 8;             // 178
-  const P_DETAILS_Y       = P_HEADER_H + P_PHOTO_SECTION_H; // 250
-  const P_FOOTER_H        = 36;
-  const P_GRID_COL_W      = Math.floor((W - PAD * 2 - 12) / 2);
+  const P_PHOTO_Y         = P_HEADER_H + 13;
+  const P_PHOTO_SECTION_H = 144;                             // 30% of 480
+  const P_NAME_Y          = P_HEADER_H + P_PHOTO_SECTION_H; // 216
+  const P_NAME_H          = 48;                              // 10% of 480
+  const P_DETAILS_Y       = P_NAME_Y + P_NAME_H;            // 264
+  const P_DETAILS_H       = 144;                             // 30% of 480
+  const P_FOOTER_H        = 72;                              // 15% of 480
 
   // Landscape layout constants (480Ã—300)
   const L_HEADER_H  = 75;
@@ -218,13 +220,16 @@ async function renderCardToCanvas(
   const F_SMALL = isLandscape ? 8  : 7.5;
   const F_FOOT  = 8;
 
-  // â”€â”€ Build field arrays â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const pgridFields: { label: string; value: string; accent?: boolean }[] = [
-    v("idNumber")   ? { label: ID_LABEL[orgType], value: v("idNumber"), accent: true } : null,
-    v("class")      ? { label: "Class",           value: v("class") }                  : null,
-    v("department") ? { label: "Dept.",            value: v("department") }             : null,
-    v("dob")        ? { label: "DOB",              value: v("dob") }                    : null,
-  ].filter(Boolean) as { label: string; value: string; accent?: boolean }[];
+  // Portrait detail rows -- label:value format, spec order
+  const pDetailRows: { label: string; value: string }[] = [
+    v("idNumber")    ? { label: ID_LABEL[orgType], value: v("idNumber") }    : null,
+    v("class")       ? { label: "Class",           value: v("class") }       : null,
+    v("bloodGroup")  ? { label: "Blood Group",     value: v("bloodGroup") }  : null,
+    v("phone")       ? { label: "Phone",            value: v("phone") }       : null,
+    v("address")     ? { label: "Address",          value: v("address") }     : null,
+    v("department")  ? { label: "Department",       value: v("department") }  : null,
+    v("dob")         ? { label: "DOB",              value: v("dob") }         : null,
+  ].filter(Boolean) as { label: string; value: string }[];
 
   const lgridFields: { label: string; value: string; accent?: boolean }[] = [
     v("idNumber")   ? { label: ID_LABEL[orgType], value: v("idNumber"), accent: true } : null,
@@ -307,82 +312,48 @@ async function renderCardToCanvas(
     else ctx.strokeRect(px, py, pw, ph);
   }
 
-  // â”€â”€ PORTRAIT layout â€” centered vertical stack â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- PORTRAIT layout -- photo(30%) / name(10%) / details(30%) --
   if (!isLandscape) {
-    // Photo section background
-    ctx.fillStyle = "#f8fafc"; ctx.fillRect(0, HEADER_H, W, H - HEADER_H);
+    // Photo section background (30%)
+    ctx.fillStyle = "#f8fafc"; ctx.fillRect(0, P_HEADER_H, W, P_PHOTO_SECTION_H);
+    ctx.strokeStyle = theme.color + "22"; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(0, P_NAME_Y); ctx.lineTo(W, P_NAME_Y); ctx.stroke();
 
-    // Centered photo with rounded corners
-    drawPhoto(P_PHOTO_X, P_PHOTO_Y, P_PHOTO_W, P_PHOTO_H, 9);
+    // Passport-style photo centered
+    drawPhoto(P_PHOTO_X, P_PHOTO_Y, P_PHOTO_W, P_PHOTO_H, 6);
 
-    let fY = P_DETAILS_Y + 4;
+    // Name section background (10%)
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, P_NAME_Y, W, P_NAME_H);
+    ctx.strokeStyle = theme.color + "22"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, P_NAME_Y + P_NAME_H); ctx.lineTo(W, P_NAME_Y + P_NAME_H); ctx.stroke();
 
-    // Name â€” centered
+    // Name centered in name zone
     ctx.fillStyle = "#0f172a"; ctx.font = `bold ${F_NAME}px Arial`; ctx.textAlign = "center";
-    ctx.fillText(v("name") || "â€”", W / 2, fY + F_NAME, W - PAD * 2);
-    fY += Math.round(F_NAME * 1.2) + 3;
-
-    // Designation â€” centered
+    ctx.fillText(v("name") || "-", W / 2, P_NAME_Y + P_NAME_H * 0.58, W - PAD * 2);
     if (v("designation")) {
       ctx.fillStyle = theme.color; ctx.font = `bold ${F_DESIG}px Arial`; ctx.textAlign = "center";
-      ctx.fillText(v("designation"), W / 2, fY + F_DESIG, W - PAD * 2);
-      fY += F_DESIG + 6;
+      ctx.fillText(v("designation"), W / 2, P_NAME_Y + P_NAME_H * 0.88, W - PAD * 2);
     }
 
-    // 2-col grid â€” centered
-    if (pgridFields.length > 0) {
-      const ROW_H = F_LABEL + F_VALUE + 5;
-      const GRID_TOTAL_W = P_GRID_COL_W * 2 + 12;
-      const GRID_X = Math.round((W - GRID_TOTAL_W) / 2);
-      pgridFields.forEach((f, i) => {
-        const col = i % 2; const row = Math.floor(i / 2);
-        const fx = col === 0 ? GRID_X : GRID_X + P_GRID_COL_W + 12;
-        const fy = fY + row * ROW_H;
-        ctx.fillStyle = "#94a3b8"; ctx.font = `${F_LABEL}px Arial`; ctx.textAlign = "left";
-        ctx.fillText(f.label.toUpperCase(), fx, fy + F_LABEL, P_GRID_COL_W);
-        ctx.fillStyle = f.accent ? theme.color : "#1e293b"; ctx.font = `bold ${F_VALUE}px Arial`;
-        ctx.fillText(f.value, fx, fy + F_LABEL + F_VALUE + 2, P_GRID_COL_W);
-      });
-      fY += Math.ceil(pgridFields.length / 2) * ROW_H + 5;
-    }
+    // Details section background (30%)
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, P_DETAILS_Y, W, P_DETAILS_H);
 
-    // Blood + Phone chips â€” centered
-    if (v("bloodGroup") || v("phone")) {
-      ctx.font = `bold ${F_CHIP}px Arial`;
-      let totalChipW = 0;
-      if (v("bloodGroup")) totalChipW += ctx.measureText(`BG: ${v("bloodGroup")}`).width + 28;
-      if (v("phone")) totalChipW += ctx.measureText(`ðŸ“ž ${v("phone")}`).width + 28;
-      let chipX = Math.round((W - totalChipW) / 2);
-      const chipY = fY + 4;
-      if (v("bloodGroup")) chipX += drawChip(ctx, chipX, chipY, `BG: ${v("bloodGroup")}`, "#fee2e2", "#b91c1c", F_CHIP);
-      if (v("phone")) drawChip(ctx, chipX, chipY, `ðŸ“ž ${v("phone")}`, "#f1f5f9", "#334155", F_CHIP);
-      fY += F_CHIP + 14 + 4;
-    }
-
-    // Email â€” centered
-    if (v("email")) {
-      ctx.fillStyle = "#64748b"; ctx.font = `${F_SMALL}px Arial`; ctx.textAlign = "center";
-      ctx.fillText(`âœ‰ ${v("email")}`, W / 2, fY + F_SMALL + 3, W - PAD * 2);
-      fY += F_SMALL + 5;
-    }
-
-    // Address â€” full-width rounded box
-    if (v("address")) {
-      const addrH = F_SMALL * 2.8 + 16;
-      ctx.fillStyle = "#f1f5f9"; rr(ctx, PAD, fY, W - PAD * 2, addrH, 6); ctx.fill();
-      ctx.fillStyle = "#475569"; ctx.font = `${F_SMALL}px Arial`; ctx.textAlign = "left";
-      const addrLines = wrapText(ctx, `ðŸ“ ${v("address")}`, W - PAD * 2 - 16);
-      addrLines.slice(0, 2).forEach((line, li) => {
-        ctx.fillText(line, PAD + 8, fY + 8 + F_SMALL + li * (F_SMALL * 1.4), W - PAD * 2 - 16);
-      });
-      fY += addrH + 4;
-    }
-
-    // Emergency
-    if (v("emergencyContact")) {
-      ctx.fillStyle = "#c2410c"; ctx.font = `bold ${F_SMALL}px Arial`; ctx.textAlign = "left";
-      ctx.fillText(`SOS: ${v("emergencyContact")}`, PAD, fY + F_SMALL, W - PAD * 2);
-    }
+    // Label : value rows, single column, left-aligned
+    const ROW_H = 22;
+    const LABEL_W = 68;
+    const COLON_X = PAD + LABEL_W + 3;
+    const VALUE_X = COLON_X + 8;
+    const VALUE_W = W - VALUE_X - PAD;
+    let detY = P_DETAILS_Y + 10;
+    pDetailRows.slice(0, 6).forEach(pf => {
+      ctx.fillStyle = "#64748b"; ctx.font = `${F_LABEL + 1}px Arial`; ctx.textAlign = "left";
+      ctx.fillText(pf.label, PAD, detY + F_LABEL + 1, LABEL_W);
+      ctx.fillStyle = "#94a3b8"; ctx.font = `${F_LABEL + 1}px Arial`;
+      ctx.fillText(":", COLON_X, detY + F_LABEL + 1);
+      ctx.fillStyle = "#1e293b"; ctx.font = `bold ${F_VALUE}px Arial`;
+      ctx.fillText(pf.value, VALUE_X, detY + F_VALUE, VALUE_W);
+      detY += ROW_H;
+    });
   }
 
   // â”€â”€ LANDSCAPE layout â€” photo-left, details-right â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -458,45 +429,35 @@ async function renderCardToCanvas(
     }
   }
 
-  // -- Portrait barcode + QR row (above footer) ----------------------------------------
-  if (!isLandscape) {
-    const bcY = H - P_FOOTER_H - 34;
-    ctx.fillStyle = "#f8fafc"; ctx.fillRect(0, bcY, W, 34);
-    ctx.strokeStyle = "#e2e8f0"; ctx.lineWidth = 0.8;
-    ctx.beginPath(); ctx.moveTo(0, bcY); ctx.lineTo(W, bcY); ctx.stroke();
-    const bcStrips = [2,1,3,1,2,1,1,3,1,2,1,3,2,1,1,2,3,1,2,1];
-    let bx = PAD;
-    bcStrips.forEach((w, i) => {
-      if (i % 2 === 0) { ctx.fillStyle = "#1e293b"; ctx.fillRect(bx, bcY + 5, w, 20); }
-      bx += w + 0.8;
-    });
-    ctx.fillStyle = "#64748b"; ctx.font = `6px Arial`; ctx.textAlign = "left";
-    ctx.fillText(v("idNumber") || "ID-XXXXXXXXX", PAD, bcY + 30, 100);
-    const qrX = W - PAD - 28; const qrY2 = bcY + 3; const qrSz = 28;
-    ctx.fillStyle = "#fff"; rr(ctx, qrX, qrY2, qrSz, qrSz, 2); ctx.fill();
-    ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 1; rr(ctx, qrX, qrY2, qrSz, qrSz, 2); ctx.stroke();
-    const qrCells = [1,1,1,0,1, 1,0,1,0,0, 1,1,1,0,1, 0,0,0,1,0, 1,0,1,1,1];
-    const cellSz = (qrSz - 4) / 5;
-    qrCells.forEach((c, i) => {
-      if (c) { const col = i % 5; const row2 = Math.floor(i / 5);
-        ctx.fillStyle = "#1e293b";
-        ctx.fillRect(qrX + 2 + col * cellSz, qrY2 + 2 + row2 * cellSz, cellSz - 0.5, cellSz - 0.5); }
-    });
-  }
-
-  // â”€â”€ Footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Footer (15%) with QR bottom-right for portrait --
   const footY = H - FOOTER_H;
   const fGrad = ctx.createLinearGradient(0, footY, W, H);
   fGrad.addColorStop(0, theme.from); fGrad.addColorStop(1, theme.to);
   ctx.fillStyle = fGrad; ctx.fillRect(0, footY, W, FOOTER_H);
 
-  ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.font = `${F_FOOT}px Arial`; ctx.textAlign = "left";
-  ctx.fillText(v("issueDate") ? `Issued: ${v("issueDate")}` : "IDForge AI", PAD, footY + FOOTER_H * 0.65);
+  ctx.fillStyle = "rgba(255,255,255,0.65)"; ctx.font = `${F_FOOT}px Arial`; ctx.textAlign = "left";
+  ctx.fillText(v("issueDate") ? `Issue Date: ${v("issueDate")}` : "IDForge AI", PAD, footY + FOOTER_H * 0.40);
   if (v("expiryDate")) {
-    ctx.fillStyle = "#fff"; ctx.font = `bold ${F_FOOT}px Arial`; ctx.textAlign = "right";
-    ctx.fillText(`Valid: ${v("expiryDate")}`, W - PAD, footY + FOOTER_H * 0.65);
+    ctx.fillStyle = "#fff"; ctx.font = `bold ${F_FOOT}px Arial`; ctx.textAlign = "left";
+    ctx.fillText(`Valid Until: ${v("expiryDate")}`, PAD, footY + FOOTER_H * 0.65);
   }
 
+  // QR placeholder in footer bottom-right (portrait only)
+  if (!isLandscape) {
+    const QR_SZ = 46;
+    const QR_X = W - PAD - QR_SZ;
+    const QR_Y = footY + Math.round((FOOTER_H - QR_SZ) / 2);
+    ctx.fillStyle = "#fff"; rr(ctx, QR_X, QR_Y, QR_SZ, QR_SZ, 4); ctx.fill();
+    const qrCells = [1,1,1,0,1, 1,0,1,0,0, 1,1,1,0,1, 0,0,0,1,0, 1,0,1,1,1];
+    const qrCellSz = (QR_SZ - 6) / 5;
+    qrCells.forEach((c, qi) => {
+      if (c) {
+        const qCol = qi % 5; const qRow = Math.floor(qi / 5);
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(QR_X + 3 + qCol * qrCellSz, QR_Y + 3 + qRow * qrCellSz, qrCellSz - 1, qrCellSz - 1);
+      }
+    });
+  }
   return canvas;
 }
 
@@ -518,6 +479,7 @@ export default function DirectEntryMode({ onBack }: DirectEntryModeProps) {
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
 
   const photoInputRef    = useRef<HTMLInputElement>(null);
+  const cameraInputRef   = useRef<HTMLInputElement>(null);
   const videoRef         = useRef<HTMLVideoElement>(null);
   const streamRef        = useRef<MediaStream | null>(null);
   const previewAreaRef   = useRef<HTMLDivElement>(null);
@@ -565,6 +527,11 @@ export default function DirectEntryMode({ onBack }: DirectEntryModeProps) {
   // â”€â”€ Camera â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const startCamera = async () => {
     setCameraError(null); setCameraCaptured(false);
+    // getUserMedia requires HTTPS (or localhost). Fall back to native <input capture> on plain HTTP.
+    if (!navigator.mediaDevices?.getUserMedia || (location.protocol !== "https:" && location.hostname !== "localhost")) {
+      cameraInputRef.current?.click();
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
       streamRef.current = stream;
@@ -572,7 +539,10 @@ export default function DirectEntryMode({ onBack }: DirectEntryModeProps) {
       setTimeout(() => {
         if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}); }
       }, 100);
-    } catch { setCameraError("Camera permission denied. Please allow camera access in browser settings."); }
+    } catch {
+      // Permission denied or hardware unavailable — fall back to native picker
+      cameraInputRef.current?.click();
+    }
   };
 
   const capturePhoto = () => {
@@ -733,7 +703,8 @@ export default function DirectEntryMode({ onBack }: DirectEntryModeProps) {
                 <p className="text-[10px] text-white/20">JPG, PNG Â· Optional</p>
               </div>
             )}
-            <input ref={photoInputRef} type="file" accept="image/*" capture="user" className="hidden" onChange={handlePhotoInput} />
+            <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoInput} />
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="user" className="hidden" onChange={handlePhotoInput} />
             {photo && (
               <div className="grid grid-cols-2 gap-2 mt-2">
                 <button onClick={() => photoInputRef.current?.click()} className="flex items-center justify-center gap-1.5 h-8 rounded-lg bg-white/5 border border-white/10 text-white/50 text-xs font-bold hover:bg-white/10 hover:text-white transition-all"><Upload className="w-3 h-3" /> Upload New</button>

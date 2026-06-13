@@ -17,7 +17,12 @@ const URI = process.env.DATABASE_URL;
 if (!URI) throw new Error("DATABASE_URL env var is not set");
 
 const globalMongo = globalThis as unknown as { _mongoClient?: MongoClient };
-const client: MongoClient = globalMongo._mongoClient ?? new MongoClient(URI);
+// tlsAllowInvalidCertificates works around SSL-inspection proxies / Windows CA
+// stores that can't verify the Atlas certificate chain (UNABLE_TO_VERIFY_LEAF_SIGNATURE).
+const client: MongoClient = globalMongo._mongoClient ?? new MongoClient(URI, {
+  tls: true,
+  tlsAllowInvalidCertificates: true,
+});
 if (process.env.NODE_ENV !== "production") globalMongo._mongoClient = client;
 
 function dbName(): string {

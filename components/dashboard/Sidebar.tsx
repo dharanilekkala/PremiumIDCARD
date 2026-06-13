@@ -146,6 +146,31 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
           })}
         </nav>
 
+        {/* Collapse toggle — desktop only */}
+        <div className="hidden lg:block px-2 py-2 border-t border-white/[0.06]">
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-white/30 hover:text-white hover:bg-white/5 transition-all duration-200 group ${collapsed ? "justify-center" : ""}`}
+          >
+            <div className="w-5 h-5 shrink-0 flex items-center justify-center">
+              {collapsed
+                ? <ChevronRight className="w-4 h-4" />
+                : <ChevronLeft className="w-4 h-4" />}
+            </div>
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.span
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="text-xs font-medium whitespace-nowrap"
+                >
+                  Collapse sidebar
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </button>
+        </div>
+
         {/* Bottom: user avatar */}
         <div className={`border-t border-white/[0.06] p-3 flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center shrink-0 text-white font-bold text-xs">
@@ -161,15 +186,7 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
           </AnimatePresence>
         </div>
 
-        {/* Collapse toggle — desktop only */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="hidden lg:flex absolute top-20 -right-3 w-6 h-6 rounded-full bg-[#1a1f2e] border border-white/10 items-center justify-center text-white/40 hover:text-white transition-colors z-10"
-        >
-          {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
-        </button>
-
-        {collapsed && <AlertTriangle className="hidden" />}
+{collapsed && <AlertTriangle className="hidden" />}
       </aside>
     </>
   );
