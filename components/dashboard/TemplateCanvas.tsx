@@ -563,7 +563,7 @@ function drawCard(
       const fillW = Math.round(pw * 0.72);
       const fillH = Math.round(ph * 0.72);
       const fillX = px + Math.round((pw - fillW) / 2);
-      const fillY = py + 4; // top-align within zone so photo sits higher on the card
+      const fillY = py + Math.round((ph - fillH) / 2); // centre vertically within zone
       const r = Math.max(Math.min(fillW, fillH) * 0.06, Math.round(W * 0.02));
 
       // ── Drop-shadow behind photo ────────────────────────────────────────────
