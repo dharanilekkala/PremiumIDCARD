@@ -198,14 +198,22 @@ function autoPositionTextFields(
     fieldVw = Math.max(0.10, 0.96 - rightEdge);
     startY  = 0.20;
   } else {
-    // Portrait or centred: text goes below photo
-    const photoBottom = photoBox ? photoBox.y + photoBox.h : (isPortrait ? 0.60 : 0.45);
-    startY  = photoBottom + 0.015;
+    // Portrait or centred: text goes below photo.
+    // Use the FILL bottom (72 % of zone height) so text starts right after
+    // where the photo VISUALLY ends, not at the bottom of the full detected zone.
+    // This prevents a large gap when the zone is taller than the photo fill.
+    const PHOTO_FILL_SCALE = 0.72; // must match TemplateCanvas fillH factor
+    const photoFillBottom = photoBox
+      ? photoBox.y + photoBox.h * PHOTO_FILL_SCALE + 0.01
+      : (isPortrait ? 0.58 : 0.45);
+    startY  = photoFillBottom;
+    // Hard ceiling — keeps text above the footer no matter how large the photo zone is
+    startY  = Math.min(startY, isPortrait ? 0.68 : 0.60);
     fieldVx = 0.03;
     fieldVw = 0.94;
   }
 
-  const bottomBound = 0.94;
+  const bottomBound = 0.93;
   const available   = Math.max(0.08, bottomBound - startY);
   const rowH        = Math.min(available / unpositioned.length, 0.10);
 

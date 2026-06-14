@@ -346,6 +346,10 @@ function drawCard(
   const enabled   = fields.filter(f => f.enabled);
   const TEXT_PAD  = 6;    // vertical-only pad for text erase — keeps horizontal bounds exact
   const PHOTO_PAD = 2;    // px padding around photo erase zone — minimal, preserves footer/signature
+  // Small upward nudge applied ONLY to text fields (not photo) so student data
+  // starts closer to the bottom of the photo fill instead of the detected zone bottom.
+  const CONTENT_SHIFT = Math.round(H * 0.03);       // 3% nudge upward for text only
+  const MIN_CONTENT_Y = 0;                           // unused for photo (photo stays at detected position)
 
   // ══════════════════════════════════════════════
   // STEP 2: Erase original text values
@@ -367,7 +371,7 @@ function drawCard(
       const pos = field.position;
       if (!pos || pos.vx === undefined || pos.vy === undefined) return;
 
-      const y  = pos.vy * H;
+      const y  = pos.vy * H - CONTENT_SHIFT;
       const fs = Math.max(pos.fs ?? 12, 9);
 
       const baseH  = Math.max(Math.round(pos.vh * H), Math.round(fs * 1.8));
@@ -472,9 +476,9 @@ function drawCard(
     const isDetail  = DETAIL_KEYS.has(field.key);
     const isAddress = /address/i.test(field.key);
 
-    const areaTop = Math.round((pos.vy - pos.vh / 2) * H);
+    const areaTop = Math.round((pos.vy - pos.vh / 2) * H) - CONTENT_SHIFT;
     const areaH   = Math.max(Math.round(pos.vh * H), 4);
-    const y       = Math.round(pos.vy * H);
+    const y       = Math.round(pos.vy * H) - CONTENT_SHIFT;
 
     // Font: name ≥ 16px bold centered; detail 500-weight left; others use detected values
     const fs     = isName ? Math.max(pos.fs ?? 16, 16) : Math.max(pos.fs ?? 12, 7);
@@ -554,12 +558,12 @@ function drawCard(
     const ph = Math.min(Math.round(box.h * H), H - py);
 
     if (pw > 4 && ph > 4) {
-      // 65 % fill — 17.5 % margin on every side. Photo is visibly smaller than
-      // the detected zone, matching the original card's photo-to-frame ratio.
-      const fillW = Math.round(pw * 0.65);
-      const fillH = Math.round(ph * 0.65);
+      // 72 % fill — passport-style: photo noticeably smaller than the detected zone,
+      // leaving natural frame margin on all sides.
+      const fillW = Math.round(pw * 0.72);
+      const fillH = Math.round(ph * 0.72);
       const fillX = px + Math.round((pw - fillW) / 2);
-      const fillY = py + Math.round((ph - fillH) / 2);
+      const fillY = py + 4; // top-align within zone so photo sits higher on the card
       const r = Math.max(Math.min(fillW, fillH) * 0.06, Math.round(W * 0.02));
 
       // ── Drop-shadow behind photo ────────────────────────────────────────────
