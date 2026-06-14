@@ -354,6 +354,11 @@ function drawCard(
   // the template's original content at that zone is preserved.
   // Skipped entirely in Photo-Replacement Mode (photoOnly=true).
   // ══════════════════════════════════════════════
+  // Keys whose rendered string includes a "Label : Value" prefix — need wider erase
+  // to cover any pre-printed label text that sits to the LEFT of the detected value zone.
+  const DETAIL_KEYS = new Set(["fatherName", "motherName", "class", "phone", "email", "address"]);
+  const CARD_MARGIN = Math.round(W * 0.03);   // 3% left/right card margin
+
   if (!photoOnly) {
     enabled.forEach(field => {
       if (field.type === "photo") return;
@@ -362,18 +367,23 @@ function drawCard(
       const pos = field.position;
       if (!pos || pos.vx === undefined || pos.vy === undefined) return;
 
-      const x  = pos.vx * W;
       const y  = pos.vy * H;
       const fs = Math.max(pos.fs ?? 12, 9);
 
-      const baseW  = Math.round(pos.vw * W);
       const baseH  = Math.max(Math.round(pos.vh * H), Math.round(fs * 1.8));
-      // Erase at exact detected width — no horizontal bleed that could clip adjacent labels
-      const eraseX = Math.max(0, Math.round(x));
       const eraseY = Math.max(0, Math.round(y - baseH / 2) - TEXT_PAD);
-      const eraseW = Math.min(baseW, W - eraseX);
       const eraseH = Math.min(baseH + TEXT_PAD * 2, H - eraseY);
-      if (eraseW <= 0 || eraseH <= 0) return;
+      if (eraseH <= 0) return;
+
+      // For detail fields, extend erase leftward from the detected value-start (vx)
+      // all the way back to the card margin. This covers any pre-printed label text
+      // ("Father Name :") that sits to the left of where Claude detected the value.
+      const isDetail = DETAIL_KEYS.has(field.key);
+      const valueStartX = Math.round(pos.vx * W);
+      const valueEndX   = Math.min(Math.round((pos.vx + pos.vw) * W), W);
+      const eraseX = isDetail ? CARD_MARGIN : valueStartX;
+      const eraseW = Math.max(valueEndX - eraseX, 0);
+      if (eraseW <= 0) return;
 
       ctx.fillStyle = sampleTextBg(ctx, eraseX, eraseY, eraseW, eraseH, TEXT_PAD, W, H);
       ctx.fillRect(eraseX, eraseY, eraseW, eraseH);
@@ -458,50 +468,59 @@ function drawCard(
     if (!displayVal) return;
     if (!pos || pos.vx === undefined || pos.vy === undefined) return;
 
+    const isName    = field.key === "studentName" || field.key === "employeeName";
+    const isDetail  = DETAIL_KEYS.has(field.key);
     const isAddress = /address/i.test(field.key);
 
-    // All geometry from detected position — never hardcoded
-    const areaLeft = Math.round(pos.vx * W);
-    const areaTop  = Math.round((pos.vy - pos.vh / 2) * H);
-    const areaW    = Math.round(pos.vw * W);
-    const areaH    = Math.max(Math.round(pos.vh * H), 4);
-    const y        = Math.round(pos.vy * H);
-    const fs       = Math.max(pos.fs ?? 12, 7);
+    const areaTop = Math.round((pos.vy - pos.vh / 2) * H);
+    const areaH   = Math.max(Math.round(pos.vh * H), 4);
+    const y       = Math.round(pos.vy * H);
+
+    // Font: name ≥ 16px bold centered; detail 500-weight left; others use detected values
+    const fs     = isName ? Math.max(pos.fs ?? 16, 16) : Math.max(pos.fs ?? 12, 7);
+    const weight = (isName || pos.bold) ? "700" : (isDetail ? "500" : "400");
+    const align  = isName ? "center" : (isDetail ? "left" : (pos.align ?? "left"));
+
+    // Detail fields: render "field.label : value" starting from card margin.
+    // This matches the extended erase zone in Step 2 — both start at CARD_MARGIN.
+    const renderLeft  = isDetail ? CARD_MARGIN : Math.round(pos.vx * W);
+    const renderRight = isDetail
+      ? Math.min(Math.round((pos.vx + pos.vw) * W), W - CARD_MARGIN)
+      : Math.min(Math.round((pos.vx + pos.vw) * W), W);
+    const renderW  = Math.max(renderRight - renderLeft, 40);
+    const drawX    = align === "center" ? renderLeft + Math.round(renderW / 2)
+                   : align === "right"  ? renderLeft + renderW
+                   : renderLeft;
+    const renderStr = isDetail ? `${field.label} : ${displayVal}` : displayVal;
 
     // Use detected color — guard against light text on light background
     const rawColor  = pos.color || textColor;
     const safeColor = isLightColor(rawColor)
       ? (isLightColor(textColor) ? "#374151" : textColor)
       : rawColor;
-    const weight  = pos.bold ? "700" : "400";
-    const align   = pos.align ?? "left";
-    const drawX   = align === "center" ? areaLeft + Math.round(areaW / 2)
-                  : align === "right"  ? areaLeft + areaW
-                  : areaLeft;
-    const mkFont  = (sz: number) => `${weight} ${sz}px Poppins, Inter, Arial, sans-serif`;
+    const mkFont = (sz: number) => `${weight} ${sz}px Poppins, Inter, Arial, sans-serif`;
 
     ctx.save();
     ctx.beginPath();
-    ctx.rect(areaLeft, areaTop, Math.max(areaW, 1), Math.max(areaH, isAddress ? fs * 3.8 : fs * 2.4));
+    ctx.rect(renderLeft, areaTop, Math.max(renderW, 1), Math.max(areaH, isAddress ? fs * 3.8 : fs * 2.4));
     ctx.clip();
     ctx.textBaseline = "middle";
     ctx.fillStyle    = safeColor;
     ctx.textAlign    = align as CanvasTextAlign;
 
     if (isAddress) {
-      // Word-wrap inside detected area width
-      const lines = wrapText(ctx, displayVal, areaW * 0.96, 2);
+      const lines = wrapText(ctx, renderStr, renderW * 0.96, 2);
       const lineH = Math.round(fs * 1.5);
       const topY  = y - Math.round(((lines.length - 1) * lineH) / 2);
       lines.forEach((ln, i) => {
-        const lineFs = fitFontSize(ctx, ln, areaW * 0.96, fs, 7, mkFont);
+        const lineFs = fitFontSize(ctx, ln, renderW * 0.96, fs, 7, mkFont);
         ctx.font = mkFont(lineFs);
         ctx.fillText(ln, drawX, topY + i * lineH);
       });
     } else {
-      const actualFs = fitFontSize(ctx, displayVal, areaW * 0.96, fs, 7, mkFont);
+      const actualFs = fitFontSize(ctx, renderStr, renderW * 0.96, fs, 7, mkFont);
       ctx.font = mkFont(actualFs);
-      ctx.fillText(displayVal, drawX, y);
+      ctx.fillText(renderStr, drawX, y);
     }
 
     ctx.restore();
@@ -535,10 +554,10 @@ function drawCard(
     const ph = Math.min(Math.round(box.h * H), H - py);
 
     if (pw > 4 && ph > 4) {
-      // 90 % fill — 5 % margin on every side keeps photo strictly inside
-      // the detected zone, never touching borders, seals, or footer graphics.
-      const fillW = Math.round(pw * 0.90);
-      const fillH = Math.round(ph * 0.90);
+      // 65 % fill — 17.5 % margin on every side. Photo is visibly smaller than
+      // the detected zone, matching the original card's photo-to-frame ratio.
+      const fillW = Math.round(pw * 0.65);
+      const fillH = Math.round(ph * 0.65);
       const fillX = px + Math.round((pw - fillW) / 2);
       const fillY = py + Math.round((ph - fillH) / 2);
       const r = Math.max(Math.min(fillW, fillH) * 0.06, Math.round(W * 0.02));
