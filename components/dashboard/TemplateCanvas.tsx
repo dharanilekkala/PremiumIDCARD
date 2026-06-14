@@ -219,7 +219,7 @@ function formatFieldValue(fieldKey: string, values: Record<string, string>): str
       return v;
 
     case "email":
-      return v ? `Email: ${v}` : "";
+      return v;
 
     default:
       return v;
@@ -304,18 +304,6 @@ function isLightColor(color: string): boolean {
   const b = parseInt(color.slice(5, 7), 16);
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.65;
 }
-
-// ─── Premium layout — detail field labels ─────────────────────────────────────
-// Fields in this map use label-value rendering (left-aligned, label in gray).
-// The label column width is fixed to the widest entry for consistent alignment.
-const DETAIL_LABELS: Record<string, string> = {
-  fatherName: "Father Name",
-  class:      "Class - Section",
-  phone:      "Phone Number",
-  address:    "Address",
-  motherName: "Mother",
-};
-const LABEL_COL_SAMPLE = "Class - Section  :  "; // widest label — anchors all value start positions
 
 // ─── Debug zone colors ────────────────────────────────────────────────────────
 const DBG_COL: Record<string, string> = {
@@ -465,104 +453,49 @@ function drawCard(
     if (!displayVal) return;
     if (!pos || pos.vx === undefined || pos.vy === undefined) return;
 
-    const isStudentName = field.key === "studentName" || field.key === "employeeName";
-    const isDetailField = field.key in DETAIL_LABELS;
-    const isAddress     = /address/i.test(field.key);
+    const isAddress = /address/i.test(field.key);
 
+    // All geometry from detected position — never hardcoded
     const areaLeft = Math.round(pos.vx * W);
     const areaTop  = Math.round((pos.vy - pos.vh / 2) * H);
     const areaW    = Math.round(pos.vw * W);
     const areaH    = Math.max(Math.round(pos.vh * H), 4);
     const y        = Math.round(pos.vy * H);
-    const baseFsRaw = Math.max(pos.fs ?? 12, 9);
-    const fs = isStudentName ? Math.max(baseFsRaw, 22) : Math.max(baseFsRaw, 11);
+    const fs       = Math.max(pos.fs ?? 12, 7);
+
+    // Use detected color — guard against light text on light background
+    const rawColor  = pos.color || textColor;
+    const safeColor = isLightColor(rawColor)
+      ? (isLightColor(textColor) ? "#374151" : textColor)
+      : rawColor;
+    const weight  = pos.bold ? "700" : "400";
+    const align   = pos.align ?? "left";
+    const drawX   = align === "center" ? areaLeft + Math.round(areaW / 2)
+                  : align === "right"  ? areaLeft + areaW
+                  : areaLeft;
+    const mkFont  = (sz: number) => `${weight} ${sz}px Poppins, Inter, Arial, sans-serif`;
 
     ctx.save();
+    ctx.beginPath();
+    ctx.rect(areaLeft, areaTop, Math.max(areaW, 1), Math.max(areaH, isAddress ? fs * 3.8 : fs * 2.4));
+    ctx.clip();
+    ctx.textBaseline = "middle";
+    ctx.fillStyle    = safeColor;
+    ctx.textAlign    = align as CanvasTextAlign;
 
-    if (isStudentName) {
-      // ── Student name: bold, centred, auto-fit to field width ─────────────
-      const mkNameFont = (sz: number) => `800 ${sz}px Poppins, Inter, Arial, sans-serif`;
-      ctx.beginPath();
-      ctx.rect(areaLeft, areaTop, Math.max(areaW, 1), Math.max(areaH, fs * 2.6));
-      ctx.clip();
-      // Shrink font until text fits — never squish glyphs with ctx maxWidth arg
-      const actualNameFs = fitFontSize(ctx, displayVal, areaW * 0.96, fs, 10, mkNameFont);
-      ctx.font         = mkNameFont(actualNameFs);
-      ctx.fillStyle    = "#111827";
-      ctx.textAlign    = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(displayVal, areaLeft + Math.round(areaW / 2), y);
-
-    } else if (isDetailField) {
-      // ── Detail row: fixed x-positions for all rows — spec: all_values_start_same_position ──
-      const rowFs    = Math.max(fs, 11);
-      // Mirror the info-card geometry so label/value are always inside the white card
-      const MARGIN_H = Math.round(W * 0.025);
-      const INNER_P  = Math.round(W * 0.030);
-      const fieldX   = MARGIN_H + INNER_P;        // all labels start here
-      const fieldW   = W - fieldX * 2;
-      const labelCol = Math.round(W * 0.25);       // spec: fixed_label_width 100
-      const valueX   = fieldX + labelCol;
-      const valueW   = Math.max(fieldW - labelCol, 20);
-
-      ctx.beginPath();
-      ctx.rect(fieldX, areaTop, fieldW,
-               Math.max(areaH, isAddress ? rowFs * 3.8 : rowFs * 2.4));
-      ctx.clip();
-      ctx.textBaseline = "middle";
-
-      // Label: weight-500 gray — auto-fit inside label column
-      const mkLblFont = (sz: number) => `500 ${sz}px Poppins, Inter, Arial, sans-serif`;
-      const labelText = `${DETAIL_LABELS[field.key]}  :  `;
-      const lblFs = fitFontSize(ctx, labelText, labelCol * 0.95, rowFs, 8, mkLblFont);
-      ctx.font      = mkLblFont(lblFs);
-      ctx.fillStyle = "#6B7280";
-      ctx.textAlign = "left";
-      ctx.fillText(labelText, fieldX, y);
-
-      // Value: weight-700 dark — auto-fit inside value column, wrap address
-      const mkValFont = (sz: number) => `700 ${sz}px Poppins, Inter, Arial, sans-serif`;
-      ctx.fillStyle = "#111827";
-      if (isAddress) {
-        const lines = wrapText(ctx, displayVal, valueW, 2);
-        const lineH = Math.round(rowFs * 1.5);
-        const topY  = y - Math.round(((lines.length - 1) * lineH) / 2);
-        lines.forEach((ln, i) => {
-          const lineFs = fitFontSize(ctx, ln, valueW, rowFs, 8, mkValFont);
-          ctx.font = mkValFont(lineFs);
-          ctx.fillText(ln, valueX, topY + i * lineH);
-        });
-      } else {
-        const valFs = fitFontSize(ctx, displayVal, valueW, rowFs, 8, mkValFont);
-        ctx.font      = mkValFont(valFs);
-        ctx.textAlign = "left";
-        ctx.fillText(displayVal, valueX, y);
-      }
-
+    if (isAddress) {
+      // Word-wrap inside detected area width
+      const lines = wrapText(ctx, displayVal, areaW * 0.96, 2);
+      const lineH = Math.round(fs * 1.5);
+      const topY  = y - Math.round(((lines.length - 1) * lineH) / 2);
+      lines.forEach((ln, i) => {
+        const lineFs = fitFontSize(ctx, ln, areaW * 0.96, fs, 7, mkFont);
+        ctx.font = mkFont(lineFs);
+        ctx.fillText(ln, drawX, topY + i * lineH);
+      });
     } else {
-      // ── Standard field — auto-fit font, honour detected alignment ─────────
-      const align      = pos.align ?? "center";
-      const drawX      = align === "center" ? areaLeft + Math.round(areaW / 2)
-                       : align === "right"  ? areaLeft + areaW
-                       : areaLeft;
-      // Never render light-colored text on a light background
-      const rawColor   = pos.color || textColor;
-      const safeColor  = isLightColor(rawColor)
-        ? (isLightColor(textColor) ? "#374151" : textColor)
-        : rawColor;
-      const weight     = pos.bold ? "700" : "400";
-      const mkStdFont  = (sz: number) => `${weight} ${sz}px Poppins, Inter, Arial, sans-serif`;
-
-      ctx.beginPath();
-      ctx.rect(areaLeft, areaTop, Math.max(areaW, 1), Math.max(areaH, fs * 2.2));
-      ctx.clip();
-
-      // Shrink font until text fits field width — no glyph squishing
-      const actualStdFs = fitFontSize(ctx, displayVal, areaW * 0.96, fs, 8, mkStdFont);
-      ctx.font         = mkStdFont(actualStdFs);
-      ctx.fillStyle    = safeColor;
-      ctx.textAlign    = align as CanvasTextAlign;
-      ctx.textBaseline = "middle";
+      const actualFs = fitFontSize(ctx, displayVal, areaW * 0.96, fs, 7, mkFont);
+      ctx.font = mkFont(actualFs);
       ctx.fillText(displayVal, drawX, y);
     }
 
