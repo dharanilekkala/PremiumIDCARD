@@ -11,7 +11,7 @@ interface Props {
 }
 
 // CR80 Portrait — 300×480px
-// Header(60px) → Photo(144px) → Name(40px) → Details(flex~198px) → Footer(38px)
+// Header(60px) → Photo(216px) → Name(38px) → Details(flex~128px) → Footer(38px)
 export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: Props) {
   const v = (k: string) => data[k]?.trim() ?? "";
 
@@ -69,15 +69,15 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
         </div>
       </div>
 
-      {/* Photo 144px — 105×130px passport style */}
+      {/* Photo 216px — 200×186px body-visible style */}
       <div style={{
-        height: 144, flexShrink: 0,
+        height: 216, flexShrink: 0,
         background: "#f8fafc",
         display: "flex", alignItems: "center", justifyContent: "center",
         borderBottom: `1px solid ${theme.color}22`,
       }}>
         <div style={{
-          width: 105, height: 130,
+          width: 200, height: 186,
           borderRadius: 6, overflow: "hidden",
           border: `2.5px solid ${theme.color}55`,
           background: "#dde3ea",
@@ -98,9 +98,9 @@ export default function PortraitCard({ data, photo, theme, subtitle, idLabel }: 
         </div>
       </div>
 
-      {/* Name 40px */}
+      {/* Name 38px */}
       <div style={{
-        height: 40, flexShrink: 0,
+        height: 38, flexShrink: 0,
         background: "#fff",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         padding: "0 12px",

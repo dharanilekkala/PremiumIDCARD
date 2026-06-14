@@ -185,17 +185,17 @@ async function renderCardToCanvas(
   const W = isLandscape ? 480 : 300;
   const H = isLandscape ? 300 : 480;
 
-  // Portrait layout constants (300x480) — header 60 / photo 144 / name 40 / details 198 / footer 38
+  // Portrait layout constants (300x480) -- header 60 / photo 216 / name 38 / details 128 / footer 38
   const P_HEADER_H        = 60;                              // compact header
-  const P_PHOTO_W         = 105;                             // 35% of card width
-  const P_PHOTO_H         = 130;                             // passport-style height
+  const P_PHOTO_W         = 200;                             // 67% of card width
+  const P_PHOTO_H         = 186;                             // body-visible height
   const P_PHOTO_X         = Math.round((W - P_PHOTO_W) / 2);
-  const P_PHOTO_Y         = P_HEADER_H + 7;                 // (144-130)/2 = 7px padding
-  const P_PHOTO_SECTION_H = 144;                             // 30% of 480
-  const P_NAME_Y          = P_HEADER_H + P_PHOTO_SECTION_H; // 204
-  const P_NAME_H          = 40;                              // compact name section
-  const P_DETAILS_Y       = P_NAME_Y + P_NAME_H;            // 244
-  const P_DETAILS_H       = 198;                             // remaining space after other sections
+  const P_PHOTO_Y         = P_HEADER_H + Math.round((216 - P_PHOTO_H) / 2); // centred in section
+  const P_PHOTO_SECTION_H = 216;                             // 45% of 480
+  const P_NAME_Y          = P_HEADER_H + P_PHOTO_SECTION_H; // 276
+  const P_NAME_H          = 38;                              // compact name section
+  const P_DETAILS_Y       = P_NAME_Y + P_NAME_H;            // 314
+  const P_DETAILS_H       = 128;                             // remaining space
   const P_FOOTER_H        = 38;                              // 8% of 480
 
   // Landscape layout constants (480Ã—300)
@@ -320,7 +320,7 @@ async function renderCardToCanvas(
     else ctx.strokeRect(px, py, pw, ph);
   }
 
-  // -- PORTRAIT layout -- photo(30%) / name(10%) / details(30%) --
+  // -- PORTRAIT layout -- photo(45%) / name(8%) / details(27%) --
   if (!isLandscape) {
     // Photo section background (30%)
     ctx.fillStyle = "#f8fafc"; ctx.fillRect(0, P_HEADER_H, W, P_PHOTO_SECTION_H);
