@@ -346,9 +346,9 @@ function drawCard(
   const enabled   = fields.filter(f => f.enabled);
   const TEXT_PAD  = 6;    // vertical-only pad for text erase — keeps horizontal bounds exact
   const PHOTO_PAD = 2;    // px padding around photo erase zone — minimal, preserves footer/signature
-  // Small upward nudge applied ONLY to text fields (not photo) so student data
-  // starts closer to the bottom of the photo fill instead of the detected zone bottom.
-  const CONTENT_SHIFT = Math.round(H * 0.03);       // 3% nudge upward for text only
+  // Upward nudge applied ONLY to text fields (not photo) so student data
+  // sits closer to the photo fill bottom without affecting photo position.
+  const CONTENT_SHIFT = Math.round(H * 0.06);       // 6% nudge upward for text only
   const MIN_CONTENT_Y = 0;                           // unused for photo (photo stays at detected position)
 
   // ══════════════════════════════════════════════
