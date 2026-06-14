@@ -14,10 +14,10 @@
  * - sampleLocalBg samples 5 px strips on all 4 sides of an erase zone and uses
  *   the MEDIAN colour, not average. This matches gradient / multi-section card
  *   backgrounds far better than a global bgColor constant.
- * - Photo erase uses a 15 px outward pad so slightly-off photoBox coords can
- *   never leave the original photo visible at the edges.
- * - Photos are cover-fit into the detected photo zone — full body preserved
- *   (uniform, tie, badge, shoulders). User can crop via the Edit Photo editor.
+ * - Photo erase uses a 2 px outward pad — tight enough to cover edge bleed
+ *   without ever touching footer, signature, or seal graphics below/beside the zone.
+ * - Photos are cover-fit inside 90 % of the detected photo zone (5 % margin
+ *   each side). No expansion beyond the detected box. User can crop via Edit Photo.
  */
 import {
   useEffect, useRef, forwardRef, useImperativeHandle, useCallback,
@@ -356,8 +356,8 @@ function drawCard(
   ctx.drawImage(bgImg, 0, 0, W, H);
 
   const enabled   = fields.filter(f => f.enabled);
-  const TEXT_PAD  = 14;   // px padding added above/below each text erase zone
-  const PHOTO_PAD = 20;   // px padding around photo erase zone
+  const TEXT_PAD  = 10;   // px padding added above/below each text erase zone
+  const PHOTO_PAD = 2;    // px padding around photo erase zone — minimal, preserves footer/signature
 
   // ══════════════════════════════════════════════
   // STEP 2: Erase ALL original text values
@@ -450,27 +450,6 @@ function drawCard(
   }
 
   if (!photoOnly) {
-    // ── PRE-PASS: draw details white card BEFORE text ─────────────────────────
-    const detailFlds = enabled.filter(f => f.key in DETAIL_LABELS && f.position);
-    if (detailFlds.length >= 1) {
-      const minVy = Math.min(...detailFlds.map(f => f.position!.vy - f.position!.vh / 2));
-      const maxVy = Math.max(...detailFlds.map(f => f.position!.vy + f.position!.vh / 2));
-      const PAD      = Math.round(W * 0.030);
-      const MARGIN_H = Math.round(W * 0.025);
-      const cx  = MARGIN_H;
-      const cy  = Math.max(0, Math.round(minVy * H) - PAD);
-      const cw  = W - MARGIN_H * 2;
-      const ch  = Math.min(H - cy, Math.round((maxVy - minVy) * H) + PAD * 2);
-      ctx.save();
-      ctx.shadowColor   = "rgba(0,0,0,0.08)";
-      ctx.shadowBlur    = Math.round(W * 0.020);
-      ctx.shadowOffsetY = Math.round(W * 0.003);
-      roundRect(ctx, cx, cy, cw, ch, 10);
-      ctx.fillStyle = "#ffffff";
-      ctx.fill();
-      ctx.restore();
-    }
-
     // ── MAIN TEXT RENDER LOOP ───────────────────────────────────────────────
     enabled.forEach(field => {
     if (field.type === "photo") return;
@@ -618,24 +597,20 @@ function drawCard(
     const ph = Math.min(Math.round(box.h * H), H - py);
 
     if (pw > 4 && ph > 4) {
-      // Border thickness and corner radius scaled to card size
-      const brd = Math.max(3, Math.round(W * 0.008));
-      const r   = Math.max(Math.min(pw, ph) * 0.06, Math.round(W * 0.025));
+      // 90 % fill — 5 % margin on every side keeps photo strictly inside
+      // the detected zone, never touching borders, seals, or footer graphics.
+      const fillW = Math.round(pw * 0.90);
+      const fillH = Math.round(ph * 0.90);
+      const fillX = px + Math.round((pw - fillW) / 2);
+      const fillY = py + Math.round((ph - fillH) / 2);
+      const r = Math.max(Math.min(fillW, fillH) * 0.06, Math.round(W * 0.02));
 
-      // ── Expand: photo fills inner box PLUS the border zone ─────────────────
-      // No separate white border drawn → no visible white space inside frame.
-      const epx = Math.max(0, px - brd);
-      const epy = Math.max(0, py - brd);
-      const epw = Math.min(pw + brd * 2, W - epx);
-      const eph = Math.min(ph + brd * 2, H - epy);
-      const epR = r + brd;   // corner radius for expanded area
-
-      // ── Drop-shadow behind the entire frame ────────────────────────────────
+      // ── Drop-shadow behind photo ────────────────────────────────────────────
       ctx.save();
       ctx.shadowColor   = "rgba(0,0,0,0.22)";
       ctx.shadowBlur    = Math.round(W * 0.032);
       ctx.shadowOffsetY = Math.round(W * 0.005);
-      roundRect(ctx, epx, epy, epw, eph, epR);
+      roundRect(ctx, fillX, fillY, fillW, fillH, r);
       ctx.fillStyle = "rgba(0,0,0,0)";   // transparent fill — shadow only
       ctx.fill();
       ctx.restore();
@@ -644,7 +619,7 @@ function drawCard(
       const imgW  = pImg.naturalWidth;
       const imgH  = pImg.naturalHeight;
       const imgAR = imgW / imgH;
-      const boxAR = epw / eph;          // use EXPANDED box aspect ratio
+      const boxAR = fillW / fillH;
 
       let sx: number, sy: number, sw: number, sh: number;
 
@@ -655,23 +630,23 @@ function drawCard(
         sx = Math.round((imgW - sw) / 2);
         sy = 0;
       } else {
-        // Portrait/square → fit width, centre-crop height.
+        // Portrait/square → fit width, centre-crop height
         sw = imgW;
         sh = Math.round(imgW / boxAR);
         sx = 0;
         sy = Math.max(0, Math.min(Math.round((imgH - sh) / 2), imgH - sh));
       }
 
-      // ── Draw photo filling 100% of expanded frame area ──────────────────────
+      // ── Draw photo inside 90 % fill area (no expansion beyond detected zone) ─
       ctx.save();
-      roundRect(ctx, epx, epy, epw, eph, epR);
+      roundRect(ctx, fillX, fillY, fillW, fillH, r);
       ctx.clip();
-      ctx.drawImage(pImg, sx, sy, sw, sh, epx, epy, epw, eph);
+      ctx.drawImage(pImg, sx, sy, sw, sh, fillX, fillY, fillW, fillH);
       ctx.restore();
 
       // ── Subtle inner highlight stroke ───────────────────────────────────────
       ctx.save();
-      roundRect(ctx, epx, epy, epw, eph, epR);
+      roundRect(ctx, fillX, fillY, fillW, fillH, r);
       ctx.strokeStyle = "rgba(255,255,255,0.45)";
       ctx.lineWidth   = 1.5;
       ctx.stroke();
