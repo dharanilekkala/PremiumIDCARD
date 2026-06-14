@@ -344,17 +344,21 @@ function drawCard(
   ctx.drawImage(bgImg, 0, 0, W, H);
 
   const enabled   = fields.filter(f => f.enabled);
-  const TEXT_PAD  = 10;   // px padding added above/below each text erase zone
+  const TEXT_PAD  = 6;    // vertical-only pad for text erase — keeps horizontal bounds exact
   const PHOTO_PAD = 2;    // px padding around photo erase zone — minimal, preserves footer/signature
 
   // ══════════════════════════════════════════════
-  // STEP 2: Erase ALL original text values
-  // Skipped in Photo-Replacement Mode (photoOnly=true) — the template text,
-  // logo, borders and every other design element must stay pixel-perfect.
+  // STEP 2: Erase original text values
+  // Only erases fields that will actually be re-rendered. Fields with empty
+  // display values (e.g. "section" when merged into "class") are skipped so
+  // the template's original content at that zone is preserved.
+  // Skipped entirely in Photo-Replacement Mode (photoOnly=true).
   // ══════════════════════════════════════════════
   if (!photoOnly) {
     enabled.forEach(field => {
       if (field.type === "photo") return;
+      // Skip fields that won't be rendered — avoids blank holes in the template
+      if (!formatFieldValue(field.key, values)) return;
       const pos = field.position;
       if (!pos || pos.vx === undefined || pos.vy === undefined) return;
 
@@ -364,9 +368,10 @@ function drawCard(
 
       const baseW  = Math.round(pos.vw * W);
       const baseH  = Math.max(Math.round(pos.vh * H), Math.round(fs * 1.8));
-      const eraseX = Math.max(0, Math.round(x) - TEXT_PAD);
+      // Erase at exact detected width — no horizontal bleed that could clip adjacent labels
+      const eraseX = Math.max(0, Math.round(x));
       const eraseY = Math.max(0, Math.round(y - baseH / 2) - TEXT_PAD);
-      const eraseW = Math.min(baseW + TEXT_PAD * 2, W - eraseX);
+      const eraseW = Math.min(baseW, W - eraseX);
       const eraseH = Math.min(baseH + TEXT_PAD * 2, H - eraseY);
       if (eraseW <= 0 || eraseH <= 0) return;
 
@@ -379,8 +384,8 @@ function drawCard(
   // STEP 3: Erase original student photo
   // Search ALL fields (enabled or not) so the original photo is always
   // removed even if the user unchecked the photo field in step 3.
-  // Uses a 15 px outward pad — if photoBox coords are slightly small the
-  // original photo is still fully covered.
+  // Uses a 2 px outward pad — tight enough to cover edge bleed without
+  // touching adjacent footer / signature graphics.
   // ══════════════════════════════════════════════
   const photoFieldAll     = fields.find(f => f.type === "photo");
   const photoFieldEnabled = enabled.find(f => f.type === "photo");
