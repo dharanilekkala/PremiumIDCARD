@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   GraduationCap, Building2, Stethoscope, PartyPopper,
   Camera, Upload, X, Download, ArrowLeft, RefreshCw, Crop,
-  User, Check, Loader2, ChevronRight, Image as ImageIcon,
+  Eye, User, Check, Loader2, ChevronRight, Image as ImageIcon,
   Phone, Mail, MapPin, Calendar, Droplets, ShieldAlert,
   Hash, Briefcase, Layers, FileText, RectangleVertical, RectangleHorizontal,
 } from "lucide-react";
@@ -481,6 +481,7 @@ export default function DirectEntryMode({ onBack }: DirectEntryModeProps) {
   const [zoomMult, setZoomMult]   = useState(1.0);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [photoEditorOpen, setPhotoEditorOpen] = useState(false);
+  const [previewOpen,     setPreviewOpen]     = useState(false);
 
   const photoInputRef    = useRef<HTMLInputElement>(null);
   const cameraInputRef   = useRef<HTMLInputElement>(null);
@@ -759,7 +760,14 @@ export default function DirectEntryMode({ onBack }: DirectEntryModeProps) {
             className="w-full h-11 rounded-xl text-white font-black text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={requiredFilled ? { background: `linear-gradient(135deg, ${selectedOrg.from}, ${selectedOrg.to})`, boxShadow: `0 8px 24px ${selectedOrg.color}40` } : { background: "#1e293b" }}>
             {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {downloading ? "Generatingâ€¦" : `Download ${orientation === "portrait" ? "Portrait" : "Landscape"} PNG`}
+            {downloading ? "Generating…" : `Download ${orientation === "portrait" ? "Portrait" : "Landscape"} PNG`}
+          </button>
+          <button
+            onClick={() => setPreviewOpen(true)}
+            disabled={!requiredFilled}
+            className="w-full h-9 rounded-xl text-white/60 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] hover:text-white/90">
+            <Eye className="w-3.5 h-3.5" />
+            Preview Full Screen
           </button>
         </div>
       </div>
@@ -919,6 +927,60 @@ export default function DirectEntryMode({ onBack }: DirectEntryModeProps) {
               )}
             </div>
           </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* ── Full-Screen Preview Modal ─────────────────────────────────────────── */}
+    <AnimatePresence>
+      {previewOpen && orgType && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center gap-5 p-6"
+          onClick={e => { if (e.target === e.currentTarget) setPreviewOpen(false); }}>
+
+          {/* Title + close */}
+          <div className="flex items-center justify-between w-full max-w-sm">
+            <span className="text-sm font-bold text-white">
+              {formData.name ? `${formData.name}` : "Card Preview"}
+            </span>
+            <button
+              onClick={() => setPreviewOpen(false)}
+              className="w-8 h-8 rounded-xl bg-white/10 border border-white/[0.08] flex items-center justify-center text-white/50 hover:text-white hover:bg-white/20 transition-all">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Card — shown at ~1.8× for portrait, ~1.4× for landscape */}
+          <motion.div
+            initial={{ scale: 0.88, y: 16 }}
+            animate={{ scale: 1,    y: 0  }}
+            exit={{    scale: 0.88, y: 16 }}
+            className="flex items-center justify-center"
+            style={{
+              transform: `scale(${orientation === "portrait" ? 1.75 : 1.35})`,
+              transformOrigin: "center center",
+            }}>
+            <CardPreview orgType={orgType} data={formData} photo={photo} orientation={orientation} />
+          </motion.div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setPreviewOpen(false)}
+              className="h-10 px-5 rounded-xl text-white/60 text-sm font-semibold border border-white/[0.08] bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-all">
+              Close
+            </button>
+            <button
+              onClick={() => { setPreviewOpen(false); downloadPNG(); }}
+              className="h-10 px-5 rounded-xl text-white text-sm font-bold flex items-center gap-2 transition-all"
+              style={{ background: `linear-gradient(135deg, ${selectedOrg.from}, ${selectedOrg.to})` }}>
+              <Download className="w-3.5 h-3.5" />
+              Download PNG
+            </button>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

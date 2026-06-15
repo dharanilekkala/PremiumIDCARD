@@ -4,13 +4,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload, FileSpreadsheet, Package, ScanLine, Zap, Download,
   CheckCircle, AlertCircle, Loader2, X, ArrowRight, Bot,
-  FileText, Users, FileImage, RefreshCw, Eye, Edit3,
+  FileText, Users, FileImage, RefreshCw, Eye, Edit3, Camera,
   AlertTriangle, Shield, Search, Star, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { renderCardToDataURL } from "@/components/dashboard/TemplateCanvas";
+import PhotoEditor from "@/components/PhotoEditor";
 import {
   analyzeCardImage, detectImageDimensions,
-  TemplateAnalysis, ANALYSIS_STAGES, CardDimensions, DetectedField,
+  TemplateAnalysis, ANALYSIS_STAGES, CardDimensions, DetectedField, BoundingBox,
 } from "@/lib/templateAnalyzer";
 import { isPdf } from "@/lib/pdfUtils";
 import type { PdfInfo } from "@/lib/pdfUtils";
@@ -65,6 +66,28 @@ interface GeneratedCard {
   idx:     number;
   name:    string;
   dataUrl: string;
+}
+
+// ─── Phone-field deduplication (client-side) ─────────────────────────────────
+// Mirrors server dedup in route.ts — keeps highest-ranked phone when multiple exist.
+function dedupePhoneFields(fields: DetectedField[]): DetectedField[] {
+  const phoneFields = fields.filter(f => f.type === "phone");
+  let result = fields;
+  if (phoneFields.length > 1) {
+    const rank = (label: string) => {
+      const l = label.toLowerCase().trim();
+      if (/^mobile/.test(l))  return 4;
+      if (/^contact/.test(l)) return 3;
+      if (/^phone$/.test(l))  return 2;
+      return 1;
+    };
+    const best = phoneFields.reduce((a, b) => rank(b.label) >= rank(a.label) ? b : a);
+    result = fields.filter(f => f.type !== "phone" || f.label === best.label);
+  }
+  // Always normalize the surviving phone field label to "Mobile".
+  return result.map(f =>
+    f.type === "phone" && !/^mobile/i.test(f.label) ? { ...f, label: "Mobile" } : f
+  );
 }
 
 // ─── Fuzzy matching helpers ───────────────────────────────────────────────────
@@ -457,6 +480,90 @@ const CONF_COLOR = (c: number) =>
 const CONF_LABEL = (c: number) =>
   c >= 0.9 ? "High"            : c >= 0.7 ? "Medium"          : "Low";
 
+// ─── Auto layout for blank / partially-detected templates ────────────────────
+// Computes positions for any mandatory text field that the AI didn't locate.
+// Fields that already have real AI-detected positions are left untouched.
+// Fields marked autoPositioned=true (synthetic coords) are recomputed here too.
+function applyAutoLayout(
+  fields: DetectedField[],
+  photoBox: BoundingBox | undefined,
+  textColor: string,
+): DetectedField[] {
+  // Semantic check — returns true when an existing AI-detected field covers this role
+  const hasDetected = (role: string) => fields.some(f => {
+    if (!f.position || f.autoPositioned) return false;
+    const k = f.key.toLowerCase();
+    switch (role) {
+      case "studentName":  return /studentname|employeename/.test(k);
+      case "fatherName":   return /father|parent|guardian/.test(k);
+      case "class":        return /^class$|classname|grade|standard/.test(k);
+      case "phone":        return /phone|mobile|contact|tel/.test(k);
+      case "address":      return /address/.test(k);
+      default:             return k === role;
+    }
+  });
+
+  const MANDATORY = [
+    { key: "studentName", label: "Student Name" },
+    { key: "fatherName",  label: "Father Name"  },
+    { key: "class",       label: "Class"         },
+    { key: "phone",       label: "Phone Number"  },
+    { key: "address",     label: "Address"       },
+  ] as const;
+
+  const missing = MANDATORY.filter(m => !hasDetected(m.key));
+  if (missing.length === 0) return fields;   // all roles have real AI positions
+
+  // Layout constants derived from spec (margin_top 12, row_gap 8, font 11)
+  const cappedH     = photoBox ? Math.min(photoBox.h, 0.40) : 0;
+  const zoneBottom  = photoBox ? photoBox.y + cappedH + 0.02 : 0.52;
+  const startY      = Math.min(Math.max(zoneBottom + 0.020, 0.58), 0.66);
+
+  const NAME_H          = 0.060;
+  const DETAIL_TOP_GAP  = 0.016;   // 10 px
+  const DETAIL_SLOT     = 0.038;   // font(11) + gap(8) + pad(4) at 608 px
+  const BOTTOM          = 0.87;
+  const detailStart     = startY + NAME_H + DETAIL_TOP_GAP;
+
+  const DETAIL_ORDER = ["fatherName", "class", "phone", "address"] as const;
+
+  const freshPos = new Map<string, DetectedField["position"]>();
+
+  if (!hasDetected("studentName")) {
+    freshPos.set("studentName", {
+      vx: 0.03, vy: startY + NAME_H / 2, vw: 0.94, vh: NAME_H * 0.68,
+      fs: 16, bold: true, color: textColor || "#1a1a2e", align: "center",
+    });
+  }
+
+  let idx = 0;
+  for (const key of DETAIL_ORDER) {
+    if (hasDetected(key)) continue;
+    const vy = detailStart + idx * DETAIL_SLOT + DETAIL_SLOT / 2;
+    freshPos.set(key, {
+      vx: 0.10, vy: Math.min(vy, BOTTOM - DETAIL_SLOT / 2), vw: 0.80, vh: DETAIL_SLOT * 0.70,
+      fs: 11, bold: true, color: textColor || "#1a1a2e", align: "left",
+    });
+    idx++;
+  }
+
+  // Re-position existing fields that need synthetic coords, add truly absent ones
+  const fieldKeys = new Set(fields.map(f => f.key));
+  const result: DetectedField[] = fields.map(f =>
+    freshPos.has(f.key) ? { ...f, position: freshPos.get(f.key), autoPositioned: true } : f
+  );
+  for (const m of MANDATORY) {
+    if (fieldKeys.has(m.key) || !freshPos.has(m.key)) continue;
+    result.push({
+      id: `auto_${m.key}`, key: m.key, label: m.label,
+      type: "text", confidence: 100, zone: "bottom",
+      enabled: true, required: true, source: "manual",
+      autoPositioned: true, position: freshPos.get(m.key),
+    } as DetectedField);
+  }
+  return result;
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AIBuilderPage() {
@@ -636,7 +743,9 @@ export default function AIBuilderPage() {
 
   // ── Change photo for a specific record (manual review) ───────────────────────
   const changePhotoRef = useRef<HTMLInputElement>(null);
-  const [changingIdx,  setChangingIdx] = useState<number | null>(null);
+  const [changingIdx,   setChangingIdx]  = useState<number | null>(null);
+  const [photoEditSrc,  setPhotoEditSrc] = useState<string | null>(null);
+  const [photoEditIdx,  setPhotoEditIdx] = useState<number | null>(null);
 
   const handleChangePhoto = useCallback((file: File) => {
     if (changingIdx === null) return;
@@ -654,6 +763,18 @@ export default function AIBuilderPage() {
     setChangingIdx(null);
   }, [changingIdx]);
 
+  const handlePhotoEditApply = useCallback((dataUrl: string) => {
+    if (photoEditIdx === null) return;
+    setMatched(prev => {
+      const updated = [...prev];
+      updated[photoEditIdx] = { ...updated[photoEditIdx], photoUrl: dataUrl, confidence: 1.0, matchMethod: "exact" };
+      return updated;
+    });
+    setPreviewCards([]);
+    setPhotoEditSrc(null);
+    setPhotoEditIdx(null);
+  }, [photoEditIdx]);
+
   useEffect(() => {
     if (step === "mapping" && excelRows.length > 0 && photoMap.size > 0 && matched.length === 0 && !matchRunning) {
       triggerMatching();
@@ -664,14 +785,21 @@ export default function AIBuilderPage() {
   const renderPreview = useCallback(async () => {
     if (!analysis || !templateImg) return;
     setPreviewLoading(true); setPreviewCards([]);
-    const { fields, photoBox, textColor, dimensions } = analysis;
+    const { fields: rawFields, photoBox, textColor } = analysis;
+    const fields = dedupePhoneFields(rawFields);
+
+    // Validate: require at least 4 non-photo fields with AI-detected positions
+    const positionedCount = fields.filter(f => f.type !== "photo" && f.position && !f.autoPositioned).length;
+    if (positionedCount < 4) {
+      setError("Template zones not detected correctly. Please re-scan with a filled-in sample card.");
+      setPreviewLoading(false);
+      return;
+    }
 
     const cards: string[] = [];
     for (const { row, photoUrl } of matched.slice(0, 10)) {
       const values = buildCardValues(fields, row);
-      // Pass original photo — drawCard cover-fits it into the detected photo zone
-      // preserving full body: uniform, tie, badge, shoulders all remain visible.
-      cards.push(await renderCardToDataURL(templateImg, fields, values, photoBox, photoUrl, textColor ?? "#111111", false));
+      cards.push(await renderCardToDataURL(templateImg, fields, values, photoBox, photoUrl, textColor ?? "#111111", false, true));
     }
     setPreviewCards(cards);
     setPreviewLoading(false);
@@ -697,7 +825,16 @@ export default function AIBuilderPage() {
 
     if (toGenerate.length === 0) { setStep("download"); return; }
 
-    const { fields, photoBox, textColor, dimensions } = analysis;
+    const { fields: rawFields, photoBox, textColor } = analysis;
+    const fields = dedupePhoneFields(rawFields);
+
+    // Validate: require at least 4 non-photo fields with AI-detected positions
+    const positionedCount = fields.filter(f => f.type !== "photo" && f.position && !f.autoPositioned).length;
+    if (positionedCount < 4) {
+      setError("Template zones not detected correctly. Please re-scan with a filled-in sample card.");
+      setStep("preview");
+      return;
+    }
 
     const cards: GeneratedCard[] = [];
     const CHUNK = 20;
@@ -708,9 +845,7 @@ export default function AIBuilderPage() {
 
       const results = await Promise.all(slice.map(async ({ row, photoUrl, idx }) => {
         const values = buildCardValues(fields, row);
-        // Pass original photo — drawCard cover-fits into the detected zone,
-        // keeping uniform, shoulders, tie and badge fully visible.
-        const dataUrl = await renderCardToDataURL(templateImg, fields, values, photoBox, photoUrl, textColor ?? "#111111", false);
+        const dataUrl = await renderCardToDataURL(templateImg, fields, values, photoBox, photoUrl, textColor ?? "#111111", false, true);
         return { idx, name: row.studentName || row.employeeName || `card_${idx + 1}`, dataUrl };
       }));
 
@@ -1470,11 +1605,26 @@ export default function AIBuilderPage() {
                       <div key={i} className="flex flex-col gap-1.5 group">
                         <div className="relative rounded-xl overflow-hidden border border-white/10 shadow-lg">
                           <img src={dataUrl} alt={`card ${i + 1}`} className="w-full object-contain" />
-                          <button
-                            onClick={() => { setEditIdx(i); setEditRow({ ...rec.row }); }}
-                            className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-bold">
-                            <Edit3 className="w-3.5 h-3.5" /> Edit
-                          </button>
+                          <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 pointer-events-none group-hover:pointer-events-auto">
+                            <button
+                              onClick={() => { setEditIdx(i); setEditRow({ ...rec.row }); }}
+                              className="flex items-center gap-1.5 text-white text-[10px] font-bold bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg transition-colors w-[90px] justify-center">
+                              <Edit3 className="w-3 h-3" /> Edit Data
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (rec.photoUrl) {
+                                  setPhotoEditSrc(rec.photoUrl);
+                                  setPhotoEditIdx(rec.idx);
+                                } else {
+                                  setChangingIdx(rec.idx);
+                                  changePhotoRef.current?.click();
+                                }
+                              }}
+                              className="flex items-center gap-1.5 text-white text-[10px] font-bold bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg transition-colors w-[90px] justify-center">
+                              <Camera className="w-3 h-3" /> Edit Photo
+                            </button>
+                          </div>
                           {!rec.photoUrl && (
                             <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center">
                               <AlertCircle className="w-2.5 h-2.5 text-white" />
@@ -1732,6 +1882,18 @@ export default function AIBuilderPage() {
 
         </AnimatePresence>
       </div>
+
+      {/* Photo editor modal */}
+      <AnimatePresence>
+        {photoEditSrc && (
+          <PhotoEditor
+            src={photoEditSrc}
+            onApply={handlePhotoEditApply}
+            onClose={() => { setPhotoEditSrc(null); setPhotoEditIdx(null); }}
+            accent={{ from: "#6366f1", to: "#7c3aed" }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

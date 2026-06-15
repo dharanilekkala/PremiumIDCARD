@@ -73,30 +73,48 @@ Many school ID cards display the student name in a COLORED HORIZONTAL BAND
   with the actual name value in the yellow band (around y=0.80-0.85).
 
 
-PORTRAIT SCHOOL CARD LAYOUT EXAMPLE
-=====================================
-Card height breakdown (y values from top=0.0 to bottom=1.0):
+TWO COMMON PORTRAIT SCHOOL CARD LAYOUTS
+========================================
 
-  0.00 --- top of card
-  0.04 --- school logo / header starts
-  0.22 --- header ends
-  0.24 --- student PHOTO STARTS       <- photoBox.y = 0.24
-  0.46 --- "Class  LKG"  VALUE        <- vy=0.46, vx=0.55, vw=0.40, align="left"
-  0.54 --- "Mobile  9502822422" VALUE <- vy=0.54, vx=0.55, vw=0.40, align="left"
-  0.72 --- student PHOTO ENDS         <- photoBox.y + photoBox.h = 0.72
+LAYOUT A — Bottom-band name (yellow/coloured strip near bottom):
+  0.00 --- header
+  0.24 --- PHOTO STARTS
+  0.46 --- "Class  LKG"  VALUE      vy=0.46, vx=0.55, vw=0.40, align="left"
+  0.54 --- "Mobile  9502…" VALUE    vy=0.54, vx=0.55, vw=0.40
+  0.72 --- PHOTO ENDS
   0.74 --- YELLOW BAND STARTS
-  0.81 --- "Katamoni Athulya Sree" VALUE CENTER  <- vy=0.81  *** THIS IS THE NAME ***
+  0.81 --- "Katamoni Athulya Sree"  vy=0.81 *** NAME IN BAND ***
   0.88 --- YELLOW BAND ENDS
-  0.89 --- "Fname : Katamoni Satyanarayana Goud" VALUE <- vy=0.89
-  0.93 --- "address : Chinthalapally" VALUE       <- vy=0.93
-  1.00 --- bottom of card
+  0.89 --- "Father : Satyanarayana" vy=0.89
+  1.00 --- bottom
 
-Correct JSON for the name field (IN THE YELLOW STRIP):
+LAYOUT B — Mid-card data section (name + details below photo, above footer):
+  0.00 --- header / school name
+  0.18 --- PHOTO STARTS             photoBox.y = 0.18
+  0.52 --- PHOTO ENDS               photoBox.y + photoBox.h = 0.52 (h=0.34)
+  0.55 --- "Rudhvika"  (student name VALUE, centred)  vy=0.55
+  0.62 --- "Father Name : Suresh"   vy=0.62, align="left"
+  0.68 --- "Class : II-B"           vy=0.68
+  0.73 --- "Ph: 9515060526"         vy=0.73
+  0.78 --- "Address : Kondapur"     vy=0.78
+  0.82 --- signature / seal
+  0.86 --- footer text (bus depot, address, phone)
+  1.00 --- bottom
+
+For LAYOUT B:  student name vy is 0.50–0.68 (NOT 0.74+).
+DETECT BOTH LAYOUT TYPES correctly. Never force vy > 0.74 for all student names.
+
+Correct JSON — student name in mid-card data section (LAYOUT B):
+  { "label":"Student Name", "type":"text",
+    "vx":0.03, "vy":0.55, "vw":0.92, "vh":0.08,
+    "fs":16, "bold":true, "color":"#1a1a1a", "align":"center" }
+
+Correct JSON — student name in yellow band (LAYOUT A):
   { "label":"Student Name", "type":"text",
     "vx":0.03, "vy":0.81, "vw":0.92, "vh":0.14,
     "fs":14, "bold":true, "color":"#1a1a1a", "align":"center" }
 
-Correct JSON for class field:
+Correct JSON for class field (either layout):
   { "label":"Class", "type":"text",
     "vx":0.55, "vy":0.46, "vw":0.40, "vh":0.06,
     "fs":11, "bold":false, "color":"#111111", "align":"left" }
@@ -149,9 +167,50 @@ OUTPUT FORMAT -- return ONLY raw JSON, no markdown:
 }
 
 
+BLANK TEMPLATE CARDS (most important section)
+=============================================
+Many uploaded cards are BLANK TEMPLATES — the design and labels are printed, but no
+student data has been filled in yet. The photo zone is empty, name lines are blank, etc.
+
+For a blank template you MUST still detect ALL field zones. The zone is WHERE a value
+WOULD be written. Detect zones from printed labels even when no value text is visible.
+
+HOW TO DETECT ZONES FROM LABELS:
+  "Father Name :  ___________"
+    → label is "Father Name", colon at x≈0.38, blank space after colon
+    → vx = x just right of colon  (≈0.40)
+    → vy = vertical centre of that label row
+    → vw = remaining width to right edge (≈0.55)
+    → vh = height of that text line (~0.05)
+    → align = "left"
+
+  "Student Name" label above a blank line or underline:
+    → vx = left edge of the blank line, vy = centre of blank line
+    → vw = width of blank line, vh = line height
+
+SCHOOL CARD — MINIMUM 6 FIELDS REQUIRED
+========================================
+School ID card templates ALWAYS contain these zones. You MUST detect ALL of them.
+If the value area is blank/empty, still return the zone using the label to locate it.
+
+  Required zones (detect even if values are blank):
+  1. Photo        – passport photo area (always present)
+  2. Student Name – where student name goes (below photo or in coloured band)
+  3. Father Name  – "Father Name :", "Father's Name :", "Guardian :"
+  4. Class        – "Class :", "Std :", "Grade :" (may be combined with section)
+  5. Phone/Mobile – "Ph :", "Mobile :", "Contact :", or any phone-number label
+  6. Address      – "Address :", "Addr :", or any address label
+
+If you find fewer than 6 fields for a school card, look harder:
+  • Check every text row for label patterns ("Label :  ___")
+  • Check the right column for side-by-side label–value layouts
+  • Check footer bands for phone / address rows
+  • Blank underlines after a label = that label's value zone
+
+
 MANDATORY RULES
 ===============
-1.  Return EXACTLY the fields visible on this card -- no invented fields.
+1.  Return ALL fields whose zones you can locate — blank-value zones ARE valid.
 2.  Photo field (if photo exists): {"label":"Photo","type":"photo","vx":CENTER_x,"vy":CENTER_y,"vw":photo_w,"vh":photo_h,"fs":0,"bold":false,"color":"#000000","align":"left"}
     Note: photo FIELD uses CENTER for vx/vy; photoBox uses TOP-LEFT for x/y.
 3.  type "phone"  -> mobile, phone, contact number
@@ -171,10 +230,12 @@ MANDATORY RULES
     vx is ALWAYS the LEFT edge of the zone regardless of alignment.
 11. bgColor = background color of the DATA section (below the header). Used to erase old values.
 12. SELF-CHECK before returning the student name vy:
-    - Is the name displayed inside a COLORED BAND at the BOTTOM of the card?
-    - If YES: vy must be 0.74-0.90 (the center of the bottom band)
-    - If the name label "Student Name" is at y=0.62 but the VALUE is in a bottom band, vy=0.81, NOT 0.62
-    - Never return the LABEL row y as the VALUE vy.
+    - Is the name in a COLORED BAND at the BOTTOM? → vy = center of band (0.74–0.90)
+    - Is the name in a MID-CARD DATA SECTION below the photo? → vy = where the name VALUE text sits (0.50–0.72)
+    - Never return vy < 0.35 for the student name (that zone is header/logo/photo, never the name value).
+    - Never return the LABEL row vy as the VALUE vy.
+13. MINIMUM CHECK: Count your detected fields before returning.
+    School card with fewer than 6 fields? Go back and find the missing zones.
 
 Return ONLY the JSON object. No markdown. No explanation. No comments.`;
 
@@ -201,7 +262,7 @@ export async function POST(request: NextRequest) {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-opus-4-5",
+        model: "claude-sonnet-4-6",
         max_tokens: 2048,
         messages: [{
           role: "user",
@@ -211,7 +272,7 @@ export async function POST(request: NextRequest) {
           ],
         }],
       }),
-      signal: AbortSignal.timeout(35000),
+      signal: AbortSignal.timeout(25000),
     });
 
     if (!resp.ok) {
@@ -261,6 +322,8 @@ export async function POST(request: NextRequest) {
         if (f.vy !== undefined) f.vy = clamp(f.vy);
         if (f.vw !== undefined) f.vw = Math.min(clamp(f.vw), 1 - (f.vx ?? 0));
         if (f.vh !== undefined) f.vh = Math.min(clamp(f.vh), 1 - Math.max(0, (f.vy ?? 0) - (f.vh ?? 0) / 2));
+        // Cap vh at 0.20 — prevents huge erase zones from a misreported name-band height
+        if (f.vh !== undefined && f.vh > 0.20) f.vh = 0.20;
         if (!f.align) f.align = "left";
         if (!f.color) f.color = parsed.textColor ?? "#111111";
         return f;
@@ -281,11 +344,41 @@ export async function POST(request: NextRequest) {
           return { ...f, hasMissingCoords: true };
         }
 
-        // Student Name vy sanity check: vy < 0.74 almost certainly points to the
-        // label row ("Student Name" text) rather than the value in the yellow band.
-        // Expected range for the yellow-band value center: 0.78–0.84.
-        if (/student[\s_-]*name/i.test(f.label) && f.vy < 0.74) {
-          const warn = `"${f.label}" vy=${f.vy.toFixed(3)} looks like the label row — expected 0.78–0.84 for yellow band`;
+        // Student Name vy sanity check
+        if (/student[\s_-]*name/i.test(f.label) && f.vy < 0.35) {
+          const warn = `"${f.label}" vy=${f.vy.toFixed(3)} is in the header zone — likely label text, not the value`;
+          coordinateWarnings.push(warn);
+          console.warn(`⚠ SUSPICIOUS COORD: ${warn}`);
+          return { ...f, hasSuspiciousCoords: true };
+        }
+
+        // Phone/mobile in header (vy < 0.30) or footer (vy > 0.87) → institution contact, not student data
+        if (/phone|mobile|contact|tel/i.test(f.label)) {
+          if (f.vy < 0.30) {
+            const warn = `"${f.label}" vy=${f.vy.toFixed(3)} is in the header zone — likely institution contact`;
+            coordinateWarnings.push(warn);
+            console.warn(`⚠ SUSPICIOUS COORD: ${warn}`);
+            return { ...f, hasSuspiciousCoords: true };
+          }
+          if (f.vy > 0.87) {
+            const warn = `"${f.label}" vy=${f.vy.toFixed(3)} is in the footer zone — likely institution contact`;
+            coordinateWarnings.push(warn);
+            console.warn(`⚠ SUSPICIOUS COORD: ${warn}`);
+            return { ...f, hasSuspiciousCoords: true };
+          }
+        }
+
+        // Any data field detected in the header zone (vy < 0.22) is almost certainly wrong
+        if (f.vy < 0.22) {
+          const warn = `"${f.label}" vy=${f.vy.toFixed(3)} is in the header zone`;
+          coordinateWarnings.push(warn);
+          console.warn(`⚠ SUSPICIOUS COORD: ${warn}`);
+          return { ...f, hasSuspiciousCoords: true };
+        }
+
+        // Any data field in the footer zone (vy > 0.85) belongs to the institution, not student
+        if (f.vy > 0.85) {
+          const warn = `"${f.label}" vy=${f.vy.toFixed(3)} is in the footer zone`;
           coordinateWarnings.push(warn);
           console.warn(`⚠ SUSPICIOUS COORD: ${warn}`);
           return { ...f, hasSuspiciousCoords: true };
@@ -296,15 +389,48 @@ export async function POST(request: NextRequest) {
 
       if (missingCoordinateFields.length) parsed.missingCoordinateFields = missingCoordinateFields;
       if (coordinateWarnings.length) parsed.coordinateWarnings = coordinateWarnings;
+
+      // ── Deduplicate phone-type fields ───────────────────────────────────────
+      // AI sometimes returns both "Phone Number" (template label text) and "Mobile"
+      // (student field) pointing to the same data.  When multiple phone fields exist,
+      // keep only the highest-ranked one so the same number never appears twice.
+      const phoneFields = parsed.fields.filter((f: { type: string }) => f.type === "phone");
+      if (phoneFields.length > 1) {
+        const phoneRank = (label: string) => {
+          const l = label.toLowerCase().trim();
+          if (/^mobile/.test(l)) return 4;
+          if (/^contact/.test(l)) return 3;
+          if (/^phone$/.test(l)) return 2;
+          return 1; // "Phone Number", "Ph", "Ph No", etc.
+        };
+        const best = phoneFields.reduce(
+          (a: { label: string }, b: { label: string }) =>
+            phoneRank(b.label) >= phoneRank(a.label) ? b : a,
+        );
+        parsed.fields = parsed.fields.filter(
+          (f: { type: string; label: string }) => f.type !== "phone" || f.label === best.label,
+        );
+        console.log(
+          `  → dedup phone: kept "${best.label}" from [${phoneFields.map((f: { label: string }) => `"${f.label}"`).join(", ")}]`,
+        );
+      }
     }
 
     // ── Clamp photoBox to card bounds ─────────────────────────────────────────
     if (parsed.photoBox) {
       const pb = parsed.photoBox;
       pb.x = Math.max(0, Math.min(0.95, pb.x ?? 0));
-      pb.y = Math.max(0, Math.min(0.95, pb.y ?? 0));
+      // Photo zone must start below the header/logo band (first 30% of card).
+      // School cards commonly have a large header (logo + school name + subtitle
+      // banner) that can extend down to ~28-34% of card height.  Clamping to 0.34
+      // prevents Step 3 from erasing header text and gives a visible gap above photo.
+      const rawY      = pb.y ?? 0;
+      const rawBottom = rawY + (pb.h ?? 0.4);
+      pb.y = Math.max(0.34, Math.min(0.95, rawY));
       pb.w = Math.max(0.05, Math.min(1 - pb.x, pb.w ?? 0.3));
-      pb.h = Math.max(0.05, Math.min(1 - pb.y, pb.h ?? 0.4));
+      pb.h = Math.max(0.05, Math.min(rawBottom - pb.y, 1 - pb.y));
+      // Cap photo zone height at 40% — prevents AI over-extension into data section.
+      pb.h = Math.min(pb.h, 0.40);
     }
 
     console.log(

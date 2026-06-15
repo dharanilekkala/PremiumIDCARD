@@ -40,6 +40,10 @@ export interface DetectedField {
   required: boolean;
   source: "ai" | "manual";
   position?: FieldPosition;  // present when detected by Claude Vision
+  /** True when position was calculated by autoPositionTextFields, NOT detected by AI.
+   *  TemplateCanvas uses this to skip the erase step for these fields (preserving
+   *  template design elements like coloured boxes, decorative frames, etc.). */
+  autoPositioned?: boolean;
 }
 
 export interface CardDimensions {
@@ -202,18 +206,19 @@ function autoPositionTextFields(
     // Use the FILL bottom (72 % of zone height) so text starts right after
     // where the photo VISUALLY ends, not at the bottom of the full detected zone.
     // This prevents a large gap when the zone is taller than the photo fill.
-    const PHOTO_FILL_SCALE = 0.72; // must match TemplateCanvas fillH factor
-    const photoFillBottom = photoBox
-      ? photoBox.y + photoBox.h * PHOTO_FILL_SCALE + 0.01
-      : (isPortrait ? 0.58 : 0.45);
-    startY  = photoFillBottom;
-    // Hard ceiling — keeps text above the footer no matter how large the photo zone is
-    startY  = Math.min(startY, isPortrait ? 0.68 : 0.60);
+    // Use the ZONE bottom so text starts in the template's data section.
+    // photoBox.h is capped at 0.40 server-side, so zone bottom ≤ photoBox.y + 0.41.
+    const zoneBottom = photoBox
+      ? photoBox.y + photoBox.h + 0.015  // 1.5 % gap below photo zone
+      : (isPortrait ? 0.54 : 0.45);
+    startY  = zoneBottom;
+    // Ceiling: ensure data never starts below 58 % — keeps it in the visible data band
+    startY  = Math.min(startY, isPortrait ? 0.58 : 0.50);
     fieldVx = 0.03;
     fieldVw = 0.94;
   }
 
-  const bottomBound = 0.93;
+  const bottomBound = isPortrait ? 0.70 : 0.93;
   const available   = Math.max(0.08, bottomBound - startY);
   const rowH        = Math.min(available / unpositioned.length, 0.10);
 
@@ -224,14 +229,15 @@ function autoPositionTextFields(
     const vy        = startY + i * rowH + rowH / 2;
     field.position = {
       vx:    fieldVx,
-      vy:    Math.min(vy, 0.95),
+      vy:    Math.min(vy, bottomBound - rowH / 2),
       vw:    fieldVw,
       vh:    isAddress ? rowH * 0.90 : rowH * 0.68,
-      fs:    isName ? 16 : isClass ? 13 : 12,  // name=16 bold, class=13, others=12
+      fs:    isName ? 20 : isClass ? 13 : 12,  // name=20 bold centered, class=13, others=12
       bold:  isName,
       color: textColor || "#1a1a2e",
       align: "center",
     };
+    field.autoPositioned = true;
   });
 }
 
@@ -301,7 +307,7 @@ export async function analyzeCardImage(
   // Play the stage animation while the API round-trip happens
   const animPromise = (async () => {
     for (let i = 0; i < ANALYSIS_STAGES.length; i++) {
-      await new Promise(r => setTimeout(r, 280));
+      await new Promise(r => setTimeout(r, 120));
       onStage(
         ANALYSIS_STAGES[i].label,
         ANALYSIS_STAGES[i].key,
@@ -310,8 +316,8 @@ export async function analyzeCardImage(
     }
   })();
 
-  // Resize before sending to API
-  const resized = await resizeForAPI(imageDataUrl);
+  // Resize before sending to API — 800px is sufficient for label extraction
+  const resized = await resizeForAPI(imageDataUrl, 800);
 
   // Call the server-side route
   let apiResult: Record<string, unknown> = { mode: "manual" };
@@ -389,7 +395,7 @@ export async function analyzeCardImage(
     // Covers: blank templates with no readable labels, purely-graphical designs,
     // and cards where Claude only detected the phone/address but not name/class.
     const detectedTextCount = fields.filter(f => f.type !== "photo").length;
-    if (detectedTextCount < 3) {
+    if (detectedTextCount < 6) {
       // For category "other", infer from org name (e.g. "Junior College" → student defaults)
       let effectiveCategory: CardCategory = category;
       if (category === "other" || category === "membership" || category === "event") {

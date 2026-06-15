@@ -56,49 +56,95 @@ function computeFillFields(
 ): DetectedField[] {
   const existingKeys = new Set(confirmed.map(f => f.key));
   const missing      = MANDATORY_STUDENT_FIELDS.filter(m => !existingKeys.has(m.key));
-  if (missing.length === 0) return confirmed;
 
-  // Find the lowest occupied vy so we stack below it
-  const textVys = confirmed
-    .filter(f => f.type !== "photo" && f.position)
+  // Re-layout if any confirmed field was auto-positioned (positions may be stale
+  // from analysis time when photoBox.h was uncapped and the ceiling wasn't applied).
+  const hasAutoPos = confirmed.some(f => f.autoPositioned && f.type !== "photo");
+  if (missing.length === 0 && !hasAutoPos) return confirmed;
+
+  // Use the photo ZONE bottom (capped at 40 % height) as the data start anchor.
+  // TemplateCanvas also caps ph at 40 %, so zone bottom is always above the fill.
+  const cappedH    = photoBox ? Math.min(photoBox.h, 0.40) : 0;
+  const zoneBottom = photoBox ? photoBox.y + cappedH + 0.02 : 0.66;
+
+  // AI-detected (non-auto) text positions that have already been placed
+  const aiTextVys = confirmed
+    .filter(f => f.type !== "photo" && f.position && !f.autoPositioned)
     .map(f => f.position!.vy + f.position!.vh / 2);
+  const baseStart = aiTextVys.length
+    ? Math.max(zoneBottom, Math.max(...aiTextVys) + 0.015)
+    : zoneBottom;
 
-  const photoBottom = photoBox ? photoBox.y + photoBox.h : 0.60;
-  const startY      = Math.max(
-    photoBottom + 0.015,
-    textVys.length ? Math.max(...textVys) + 0.015 : photoBottom + 0.015,
+  // Clamp data start: floor 0.62 (keeps name in the white data section, below any
+  // decorative wave/header design), ceiling 0.66 = BOTTOM(0.90) - min 5-field height.
+  const startY = Math.min(Math.max(baseStart, 0.62), 0.66);
+
+  // ── Layout ────────────────────────────────────────────────────────────────
+  // Student name: 18px bold centred.
+  // Detail block (father / class / phone / address): single column, centred container,
+  //   11px bold UPPERCASE "LABEL : VALUE" rows with equal vertical spacing.
+  const NAME_H          = 0.060;   // ~36px row for 18px bold name
+  const NAME_DETAIL_GAP = 0.005;   // minimal gap — detail block sits right under the name
+  const BOTTOM          = 0.85;    // footer reserve starts at 85 %
+
+  const detailStart = startY + NAME_H + NAME_DETAIL_GAP;
+  const detailAvail = Math.max(0, BOTTOM - detailStart);
+
+  // Father is now part of the detail block (not a separate centred line).
+  const DETAIL_KEYS_SET = new Set(["fatherName", "class", "phone", "address"]);
+  const allToLayout: DetectedField[] = [
+    ...confirmed.filter(f => f.autoPositioned && f.type !== "photo" && !CANVAS_COMBINED_KEYS.has(f.key)),
+    ...missing.filter(m => !CANVAS_COMBINED_KEYS.has(m.key)).map(m => ({
+      id: `mand_${m.key}`, label: m.label, key: m.key,
+      confidence: 100, type: m.type, zone: "bottom" as const,
+      enabled: true, required: true, source: "manual" as const,
+      position: undefined,
+    } as DetectedField)),
+  ];
+
+  const detailFields = allToLayout.filter(f => DETAIL_KEYS_SET.has(f.key));
+  // Equal-height slots so every row gets the same vertical space.
+  const detailSlot   = detailFields.length > 0
+    ? Math.max(0.030, detailAvail / detailFields.length)
+    : 0.048;
+
+  const freshPos = new Map<string, DetectedField["position"]>();
+  let detailIdx = 0;
+
+  for (const f of allToLayout) {
+    const isName   = f.key === "studentName" || f.key === "employeeName";
+    const isDetail = DETAIL_KEYS_SET.has(f.key);
+
+    if (isName) {
+      freshPos.set(f.key, {
+        vx: 0.03, vy: startY + NAME_H / 2,
+        vw: 0.94, vh: NAME_H * 0.68,
+        fs: 18, bold: true,
+        color: textColor || "#1a1a2e", align: "center" as const,
+      });
+    } else if (isDetail) {
+      // Equal-slot positioning: each field occupies one slot; centre of slot is the vy.
+      const vy = detailStart + (detailIdx + 0.5) * detailSlot;
+      detailIdx++;
+      freshPos.set(f.key, {
+        vx: 0.10, vy: Math.min(vy, BOTTOM - detailSlot / 2),
+        vw: 0.80, vh: detailSlot * 0.65,
+        fs: 11, bold: true,
+        color: textColor || "#1a1a2e", align: "left" as const,
+      });
+    }
+  }
+
+  // Apply fresh positions to confirmed fields
+  const result = confirmed.map(f =>
+    freshPos.has(f.key)
+      ? { ...f, position: freshPos.get(f.key), autoPositioned: true }
+      : f
   );
 
-  // Only fields with their own canvas zone count toward spacing
-  const positionedCount = missing.filter(m => !CANVAS_COMBINED_KEYS.has(m.key)).length;
-  const rowH = positionedCount > 0
-    ? Math.min(0.09, Math.max(0.05, (0.94 - startY) / positionedCount))
-    : 0;
-
-  let posIdx = 0;
-  const injected: DetectedField[] = missing.map((m) => {
-    const isName     = m.key === "studentName" || m.key === "employeeName";
-    const isClass    = m.key === "class";
-    const isAddress  = /address/i.test(m.key);
-    const skipCanvas = CANVAS_COMBINED_KEYS.has(m.key);
-
-    let position: DetectedField["position"] = undefined;
-    if (!skipCanvas) {
-      const vy = startY + posIdx * rowH + rowH / 2;
-      posIdx++;
-      position = {
-        vx:    0.03,
-        vy:    Math.min(vy, 0.95),
-        vw:    0.94,
-        vh:    isAddress ? rowH * 0.90 : rowH * 0.68,
-        fs:    isName ? 16 : isClass ? 13 : 12,
-        bold:  isName,
-        color: textColor || "#1a1a2e",
-        align: "center" as const,
-      };
-    }
-
-    return {
+  // Append any missing mandatory fields
+  for (const m of missing) {
+    result.push({
       id:         `mand_${m.key}`,
       label:      m.label,
       key:        m.key,
@@ -108,11 +154,12 @@ function computeFillFields(
       enabled:    true,
       required:   true,
       source:     "manual" as const,
-      position,
-    };
-  });
+      position:   freshPos.get(m.key),
+      autoPositioned: true,
+    });
+  }
 
-  return [...confirmed, ...injected];
+  return result;
 }
 
 // Optional extras — the 6 mandatory fields above handle the core student info.
@@ -512,6 +559,13 @@ export default function ManualBuilderPage() {
       analysis.textColor,
     );
   }, [fields, analysis]);
+
+  // Count how many text zones AI actually detected (excludes photo + auto-positioned fallbacks).
+  // < 1 means Claude only found the photo — text placement is estimated, not zone-based.
+  const aiTextZoneCount = useMemo(
+    () => fields.filter(f => f.source === "ai" && f.type !== "photo" && !f.autoPositioned).length,
+    [fields],
+  );
 
   // Compute a safe auto-position for a newly added optional field
   const computeAutoPos = useCallback((): import("@/lib/templateAnalyzer").FieldPosition => {
@@ -1189,17 +1243,30 @@ export default function ManualBuilderPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-4">
+
+          {/* Zone-detection warning — shown when AI only found the photo zone */}
+          {phase === "fill" && analysis && aiTextZoneCount < 1 && (
+            <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+              <div className="text-xs text-yellow-200/80 leading-relaxed">
+                <span className="font-semibold text-yellow-300">Template zones not detected.</span>{" "}
+                AI Analysis only found the photo zone — text positions below are estimated.
+                Re-upload the card and click <span className="font-medium text-yellow-300">AI Analysis</span> again for accurate zone-based placement.
+              </div>
+            </div>
+          )}
+
           <div className="glass-card rounded-2xl border border-white/[0.07] p-4">
             {analysis && phase === "fill" && hasAnyValue
               // ── Card is ready: render the real canvas or overlay ────────────────
-              ? showZones || previewSide === "back"
+              ? previewSide === "back"
                 ? (
                   <CardOverlay
                     side={previewSide}
                     analysis={analysis}
-                    referenceImage={previewSide === "front" ? frontImg : backImg}
+                    referenceImage={backImg}
                     values={values}
-                    showZoneMarkers={showZones}
+                    showZoneMarkers={false}
                   />
                 ) : (
                   <TemplateCanvas
@@ -1210,7 +1277,8 @@ export default function ManualBuilderPage() {
                     photoBox={analysis.photoBox}
                     textColor={analysis.textColor}
                     bgColor={analysis.bgColor}
-                    key={JSON.stringify(values)}
+                    debug={showZones}
+                    key={JSON.stringify(values) + showZones}
                   />
                 )
               // ── Waiting state: no card rendered until user enters data ──────────

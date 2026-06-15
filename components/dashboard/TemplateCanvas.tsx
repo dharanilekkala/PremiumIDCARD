@@ -202,7 +202,7 @@ function formatFieldValue(fieldKey: string, values: Record<string, string>): str
     case "class": {
       const sec = (values["section"] ?? "").trim();
       if (!v && !sec) return "";
-      if (v && sec)  return `${v} - ${sec}`;
+      if (v && sec)  return `${v}-${sec}`;
       return v || sec;
     }
 
@@ -313,12 +313,18 @@ const DBG_COL: Record<string, string> = {
 
 // ─── Core draw — synchronous, both images already loaded ─────────────────────
 //
-// photoOnly = true  →  Photo-Replacement Mode (AI Builder bulk generation)
+// photoOnly = true  →  Photo-Replacement Mode
 //   • Steps 1, 3, 5 only: draw template as-is, erase old photo, insert new photo.
 //   • Template text, logo, borders, colours, layout — ALL locked / untouched.
-//   • Nothing is erased or re-rendered except the photo zone itself.
 //
-// photoOnly = false  →  Full Mode (Manual Builder live preview)
+// noErase = true  →  Zone-Replacement Mode (AI Builder with blank templates)
+//   • Steps 1, 3, 4, 5: template drawn; text zones are NOT erased.
+//   • Template's pre-printed labels ("Father Name :", "Class :") stay intact.
+//   • For detail fields: renders only the student VALUE at the detected zone
+//     position (no extra "LABEL :" prefix) — the template label is already there.
+//   • Eliminates the white-box artefact caused by the over-wide Step 2 erase.
+//
+// noErase = false, photoOnly = false  →  Full Mode (Manual Builder)
 //   • All 5 steps: erase original values + render user-supplied text + photo.
 //
 function drawCard(
@@ -331,6 +337,7 @@ function drawCard(
   photoBox: BoundingBox | undefined,
   textColor: string,
   photoOnly = false,
+  noErase   = false,  // true → skip Step 2; render values-only for detail fields
   debug = false,
 ) {
   const W = bgImg.naturalWidth;
@@ -346,10 +353,6 @@ function drawCard(
   const enabled   = fields.filter(f => f.enabled);
   const TEXT_PAD  = 6;    // vertical-only pad for text erase — keeps horizontal bounds exact
   const PHOTO_PAD = 2;    // px padding around photo erase zone — minimal, preserves footer/signature
-  // Upward nudge applied ONLY to text fields (not photo) so student data
-  // sits closer to the photo fill bottom without affecting photo position.
-  const CONTENT_SHIFT = Math.round(H * 0.06);       // 6% nudge upward for text only
-  const MIN_CONTENT_Y = 0;                           // unused for photo (photo stays at detected position)
 
   // ══════════════════════════════════════════════
   // STEP 2: Erase original text values
@@ -358,25 +361,52 @@ function drawCard(
   // the template's original content at that zone is preserved.
   // Skipped entirely in Photo-Replacement Mode (photoOnly=true).
   // ══════════════════════════════════════════════
-  // Keys whose rendered string includes a "Label : Value" prefix — need wider erase
-  // to cover any pre-printed label text that sits to the LEFT of the detected value zone.
-  const DETAIL_KEYS = new Set(["fatherName", "motherName", "class", "phone", "email", "address"]);
-  const CARD_MARGIN = Math.round(W * 0.03);   // 3% left/right card margin
+  // Keys whose rendered string uses "Label : Value" format — also need wider erase
+  // to cover any pre-printed label text sitting LEFT of the detected value zone.
+  const DETAIL_KEYS = new Set([
+    "fatherName", "fathersName", "motherName", "parentName", "guardianName",
+    "class", "grade", "className", "section",
+    "phone", "phoneNumber", "mobileNumber", "contactNumber", "mobile", "contact",
+    "email", "emailAddress", "emailId",
+    "address", "addressLine",
+    "rollNumber", "admissionNumber", "studentId", "employeeId", "designation",
+  ]);
+  // Known student-data keys — always erase the detected zone even when the
+  // replacement value is empty so the original template value is cleared.
+  const ALWAYS_ERASE_KEYS = new Set([
+    "studentName", "employeeName",
+    "fatherName", "fathersName", "motherName", "parentName",
+    "class", "section", "grade", "className",
+    "phone", "phoneNumber", "mobileNumber", "contactNumber", "mobile", "contact",
+    "email", "emailAddress",
+    "address", "addressLine",
+    "rollNumber", "admissionNumber", "studentId", "employeeId", "designation",
+  ]);
+  const CARD_MARGIN = Math.round(W * 0.05);   // 5% left/right card margin (~20px)
 
-  if (!photoOnly) {
+  // noErase=true (AI Builder / zone-replacement): skip erase entirely.
+  // The blank template has no values to erase; erasing creates white boxes.
+  if (!photoOnly && !noErase) {
     enabled.forEach(field => {
       if (field.type === "photo") return;
-      // Skip fields that won't be rendered — avoids blank holes in the template
-      if (!formatFieldValue(field.key, values)) return;
+      // Auto-positioned fields have synthetic coords, not real template positions —
+      // erasing them would destroy decorative frames, coloured boxes, signature, etc.
+      if (field.autoPositioned) return;
+      const displayVal = formatFieldValue(field.key, values);
+      // Erase if: (a) has a new value to render, OR (b) is a known data field so the
+      // original template value is cleared even when the replacement is blank (e.g. section).
+      if (!displayVal && !ALWAYS_ERASE_KEYS.has(field.key)) return;
       const pos = field.position;
       if (!pos || pos.vx === undefined || pos.vy === undefined) return;
 
-      const y  = pos.vy * H - CONTENT_SHIFT;
+      const y  = pos.vy * H;
       const fs = Math.max(pos.fs ?? 12, 9);
 
-      const baseH  = Math.max(Math.round(pos.vh * H), Math.round(fs * 1.8));
-      const eraseY = Math.max(0, Math.round(y - baseH / 2) - TEXT_PAD);
-      const eraseH = Math.min(baseH + TEXT_PAD * 2, H - eraseY);
+      const HEADER_SAFE_Y = Math.round(H * 0.23); // never erase inside header/logo band
+      const baseH   = Math.max(Math.round(pos.vh * H), Math.round(fs * 1.8));
+      const rawEY   = Math.max(0, Math.round(y - baseH / 2) - TEXT_PAD);
+      const eraseY  = Math.max(rawEY, HEADER_SAFE_Y);
+      const eraseH  = Math.min(baseH + TEXT_PAD * 2 - (eraseY - rawEY), H - eraseY);
       if (eraseH <= 0) return;
 
       // For detail fields, extend erase leftward from the detected value-start (vx)
@@ -424,11 +454,14 @@ function drawCard(
     const ph = Math.min(Math.round(box.h * H), H - py);
 
     if (pw > 4 && ph > 4) {
-      // Erase with outward pad to cover original photo edges and any frame bleed
+      // Erase with outward pad to cover original photo edges and any frame bleed.
+      // PHOTO_HEADER_SAFE_Y: never erase above 34% of card height — school card
+      // headers (logo + school name + subtitle banner) commonly extend to ~28-34%.
+      const PHOTO_HEADER_SAFE_Y = Math.round(H * 0.34);
       const ePx = Math.max(0, px - PHOTO_PAD);
-      const ePy = Math.max(0, py - PHOTO_PAD);
+      const ePy = Math.max(PHOTO_HEADER_SAFE_Y, py - PHOTO_PAD);
       const ePw = Math.min(pw + PHOTO_PAD * 2, W - ePx);
-      const ePh = Math.min(ph + PHOTO_PAD * 2, H - ePy);
+      const ePh = Math.min(ph + PHOTO_PAD * 2 - (ePy - Math.max(0, py - PHOTO_PAD)), H - ePy);
 
       ctx.fillStyle = samplePhotoBg(ctx, ePx, ePy, ePw, ePh, W, H);
       ctx.fillRect(ePx, ePy, ePw, ePh);
@@ -457,8 +490,34 @@ function drawCard(
   }
 
   if (!photoOnly) {
+    // noErase: sort so student name renders before all detail fields,
+    // then enforce a floor so details never appear above the name.
+    const CONTENT_NUDGE = noErase ? Math.round(H * 0.02) : 0;
+
+    const renderOrder = noErase
+      ? [...enabled].sort((a, b) => {
+          const aIsName = a.key === "studentName" || a.key === "employeeName";
+          const bIsName = b.key === "studentName" || b.key === "employeeName";
+          if (aIsName && !bIsName) return -1;
+          if (!aIsName && bIsName) return  1;
+          return (a.position?.vy ?? 0) - (b.position?.vy ?? 0);
+        })
+      : enabled;
+
+    // Pre-compute where detail fields must start: below the student name text.
+    let lastDetailRenderY = 0;
+    if (noErase) {
+      const nameF = renderOrder.find(f =>
+        (f.key === "studentName" || f.key === "employeeName") && f.position);
+      if (nameF?.position) {
+        const nY  = Math.round(nameF.position.vy * H) + CONTENT_NUDGE;
+        const nFs = Math.max(nameF.position.fs ?? 18, 15);
+        lastDetailRenderY = nY + Math.round(nFs * 2.5);
+      }
+    }
+
     // ── MAIN TEXT RENDER LOOP ───────────────────────────────────────────────
-    enabled.forEach(field => {
+    renderOrder.forEach(field => {
     if (field.type === "photo") return;
 
     const displayVal = formatFieldValue(field.key, values);
@@ -473,46 +532,122 @@ function drawCard(
     if (!pos || pos.vx === undefined || pos.vy === undefined) return;
 
     const isName    = field.key === "studentName" || field.key === "employeeName";
-    const isDetail  = DETAIL_KEYS.has(field.key);
+    const isDetail  = !isName && DETAIL_KEYS.has(field.key);
     const isAddress = /address/i.test(field.key);
 
-    const areaTop = Math.round((pos.vy - pos.vh / 2) * H) - CONTENT_SHIFT;
+    // Apply nudge; detail fields respect lastDetailRenderY floor to stay below name.
+    const rawAT   = Math.round((pos.vy - pos.vh / 2) * H) + CONTENT_NUDGE;
     const areaH   = Math.max(Math.round(pos.vh * H), 4);
-    const y       = Math.round(pos.vy * H) - CONTENT_SHIFT;
+    const rawY    = Math.round(pos.vy * H) + CONTENT_NUDGE;
+    const y       = (isDetail && noErase && lastDetailRenderY > 0)
+                    ? Math.max(rawY, lastDetailRenderY) : rawY;
+    const areaTop = (isDetail && noErase && lastDetailRenderY > 0)
+                    ? y - Math.round(areaH / 2) : rawAT;
 
-    // Font: name ≥ 16px bold centered; detail 500-weight left; others use detected values
-    const fs     = isName ? Math.max(pos.fs ?? 16, 16) : Math.max(pos.fs ?? 12, 7);
-    const weight = (isName || pos.bold) ? "700" : (isDetail ? "500" : "400");
-    const align  = isName ? "center" : (isDetail ? "left" : (pos.align ?? "left"));
+    // Name: ≥15px, 800-weight for prominence (spec: 18). Details: 10px default, ≤12px cap.
+    const fs     = isName   ? Math.max(pos.fs ?? 18, 15)
+                 : isDetail ? Math.min(Math.max(pos.fs ?? 10, 9), 12)
+                 :             Math.max(pos.fs ?? 11, 9);
+    const weight = isName ? "800" : "700";
+    const align  = isName ? "center" : (pos.align ?? "left");
 
-    // Detail fields: render "field.label : value" starting from card margin.
-    // This matches the extended erase zone in Step 2 — both start at CARD_MARGIN.
-    const renderLeft  = isDetail ? CARD_MARGIN : Math.round(pos.vx * W);
-    const renderRight = isDetail
-      ? Math.min(Math.round((pos.vx + pos.vw) * W), W - CARD_MARGIN)
-      : Math.min(Math.round((pos.vx + pos.vw) * W), W);
-    const renderW  = Math.max(renderRight - renderLeft, 40);
-    const drawX    = align === "center" ? renderLeft + Math.round(renderW / 2)
-                   : align === "right"  ? renderLeft + renderW
-                   : renderLeft;
-    const renderStr = isDetail ? `${field.label} : ${displayVal}` : displayVal;
+    // All fields use their stored vx/vw (set by computeFillFields).
+    const renderLeft  = Math.round(pos.vx * W);
+    const renderRight = Math.min(Math.round((pos.vx + pos.vw) * W), W - CARD_MARGIN);
+    const renderW     = Math.max(renderRight - renderLeft, 40);
+    const drawX       = align === "center" ? renderLeft + Math.round(renderW / 2)
+                      : align === "right"  ? renderLeft + renderW
+                      : renderLeft;
+    // Detail fields: "LABEL : VALUE" all-caps. Name: uppercase for prominence.
+    const renderStr = isDetail ? `${field.label.toUpperCase()} : ${displayVal.toUpperCase()}`
+                    : isName   ? displayVal.toUpperCase()
+                    :             displayVal;
 
-    // Use detected color — guard against light text on light background
+    // Use detected color — guard against light text on light background.
+    // Name always uses #111111 when detected color is light (spec: high-contrast dark).
     const rawColor  = pos.color || textColor;
-    const safeColor = isLightColor(rawColor)
+    const safeColor = isName
+      ? (isLightColor(rawColor) ? "#111827" : rawColor)
+      : isLightColor(rawColor)
       ? (isLightColor(textColor) ? "#374151" : textColor)
       : rawColor;
-    const mkFont = (sz: number) => `${weight} ${sz}px Poppins, Inter, Arial, sans-serif`;
+    const mkFont = (sz: number, w = weight) => `${w} ${sz}px Poppins, Inter, Arial, sans-serif`;
+
+    const clipH = Math.max(areaH, isAddress ? Math.round(fs * 3.8) : Math.round(fs * 2.4));
+
+    // Protect footer: skip fields that start in the bottom 50px.
+    const FOOTER_SAFE_Y = H - 50;
+    if (areaTop >= FOOTER_SAFE_Y) return;
+    const safeClipH = Math.min(clipH, FOOTER_SAFE_Y - areaTop);
 
     ctx.save();
     ctx.beginPath();
-    ctx.rect(renderLeft, areaTop, Math.max(renderW, 1), Math.max(areaH, isAddress ? fs * 3.8 : fs * 2.4));
+    ctx.rect(renderLeft, areaTop, Math.max(renderW, 1), safeClipH);
     ctx.clip();
     ctx.textBaseline = "middle";
     ctx.fillStyle    = safeColor;
     ctx.textAlign    = align as CanvasTextAlign;
 
-    if (isAddress) {
+    if (isDetail) {
+      if (noErase) {
+        // Zone-replace mode: render "LABEL : VALUE" at the detected zone, no erase.
+        // Bold uppercase text overrides the template's pre-printed label.
+        if (isAddress) {
+          const lines = wrapText(ctx, renderStr, renderW * 0.96, 2);
+          const lineH = Math.round(fs * 1.5);
+          const topY  = y - Math.round(((lines.length - 1) * lineH) / 2);
+          lines.forEach((ln, i) => {
+            const lineFs = fitFontSize(ctx, ln, renderW * 0.96, fs, 7, mkFont);
+            ctx.font = mkFont(lineFs);
+            ctx.textAlign = "left";
+            ctx.fillText(ln, renderLeft, topY + i * lineH);
+          });
+        } else {
+          // Two-pass: label 8px/600, value 9px/700 — spec label_font_size/value_font_size.
+          const labelPart = `${field.label.toUpperCase()} :`;
+          const valuePart = ` ${displayVal.toUpperCase()}`;
+          // Fit full string at max 9px; cap label to 8px.
+          const vFs = fitFontSize(ctx, renderStr, renderW * 0.96, Math.min(fs, 9), 6, mkFont);
+          const lFs = Math.min(vFs, 8);
+          ctx.textAlign = "left";
+          ctx.font      = mkFont(lFs, "600");
+          ctx.fillText(labelPart, renderLeft, y);
+          const labelW  = ctx.measureText(labelPart).width;
+          ctx.font      = mkFont(vFs, "700");
+          ctx.fillText(valuePart, renderLeft + labelW, y);
+        }
+      } else {
+        // Full erase-and-replace mode: two-column "LABEL : VALUE"
+        const LABEL_COL_W = Math.min(Math.round(W * 0.30), 90); // 90px per spec
+        const valueX      = renderLeft + LABEL_COL_W;
+        const valueW      = Math.max(renderRight - valueX, 20);
+        const labelStr    = `${field.label} :`;
+
+        // Render label column
+        const labelFs = fitFontSize(ctx, labelStr, LABEL_COL_W - 4, fs, 7, mkFont);
+        ctx.font      = mkFont(labelFs);
+        ctx.textAlign = "left";
+        ctx.fillText(labelStr, renderLeft, y);
+
+        // Render value column (wrap for address)
+        if (isAddress) {
+          const lines = wrapText(ctx, displayVal, valueW * 0.98, 2);
+          const lineH = Math.round(fs * 1.5);
+          const topY  = y - Math.round(((lines.length - 1) * lineH) / 2);
+          lines.forEach((ln, i) => {
+            const lineFs = fitFontSize(ctx, ln, valueW * 0.98, fs, 7, mkFont);
+            ctx.font = mkFont(lineFs, "normal");
+            ctx.textAlign = "left";
+            ctx.fillText(ln, valueX, topY + i * lineH);
+          });
+        } else {
+          const valueFs = fitFontSize(ctx, displayVal, valueW * 0.98, fs, 7, mkFont);
+          ctx.font      = mkFont(valueFs, "normal");
+          ctx.textAlign = "left";
+          ctx.fillText(displayVal, valueX, y);
+        }
+      }
+    } else if (isAddress) {
       const lines = wrapText(ctx, renderStr, renderW * 0.96, 2);
       const lineH = Math.round(fs * 1.5);
       const topY  = y - Math.round(((lines.length - 1) * lineH) / 2);
@@ -525,6 +660,11 @@ function drawCard(
       const actualFs = fitFontSize(ctx, renderStr, renderW * 0.96, fs, 7, mkFont);
       ctx.font = mkFont(actualFs);
       ctx.fillText(renderStr, drawX, y);
+    }
+
+    // Advance floor so the next detail field starts below this one.
+    if (isDetail && noErase && lastDetailRenderY > 0) {
+      lastDetailRenderY = y + Math.round(fs * 2.2);
     }
 
     ctx.restore();
@@ -553,18 +693,30 @@ function drawCard(
   // ══════════════════════════════════════════════
   if (pImg && box) {
     const px = Math.max(0, Math.round(box.x * W));
-    const py = Math.max(0, Math.round(box.y * H));
+    // Never draw the photo above the header band — same 34% floor as Step 3 erase.
+    // Raising from 0.30 → 0.34 adds visible breathing room between the college
+    // banner and the student photo.
+    const PHOTO_PLACE_MIN_Y = Math.round(H * 0.34);
+    const rawPy = Math.max(0, Math.round(box.y * H));
+    const py = Math.max(rawPy, PHOTO_PLACE_MIN_Y);
     const pw = Math.min(Math.round(box.w * W), W - px);
-    const ph = Math.min(Math.round(box.h * H), H - py);
+    // Cap zone height at 28% so rendered photo stays ~18% after floor-clamp math.
+    const rawPh = Math.min(Math.round(Math.min(box.h, 0.28) * H), H - rawPy);
+    const ph = Math.max(rawPh - (py - rawPy), 20);
 
     if (pw > 4 && ph > 4) {
-      // 72 % fill — passport-style: photo noticeably smaller than the detected zone,
-      // leaving natural frame margin on all sides.
-      const fillW = Math.round(pw * 0.72);
-      const fillH = Math.round(ph * 0.72);
+      // Photo frame: 95% of detected zone — maximises photo while keeping a
+      // small inset so the rounded clip doesn't clip edge pixels.
+      const PHOTO_FILL_SCALE = 0.95;
+      const MOVE_DOWN        = Math.round(H * 30 / 608); // 30 px on 608 px reference
+      const fillW = Math.round(pw * PHOTO_FILL_SCALE);
+      const fillH = Math.round(ph * PHOTO_FILL_SCALE);
       const fillX = px + Math.round((pw - fillW) / 2);
-      const fillY = py + 4; // top-align within zone — photo sits high, data positions unaffected
-      const r = Math.max(Math.min(fillW, fillH) * 0.06, Math.round(W * 0.02));
+      const fillY = Math.min(
+        py + Math.round((ph - fillH) / 2) + MOVE_DOWN,
+        py + ph - fillH,  // never push below zone bottom
+      );
+      const r = Math.max(4, Math.round(Math.min(fillW, fillH) * 0.05));
 
       // ── Drop-shadow behind photo ────────────────────────────────────────────
       ctx.save();
@@ -572,37 +724,37 @@ function drawCard(
       ctx.shadowBlur    = Math.round(W * 0.032);
       ctx.shadowOffsetY = Math.round(W * 0.005);
       roundRect(ctx, fillX, fillY, fillW, fillH, r);
-      ctx.fillStyle = "rgba(0,0,0,0)";   // transparent fill — shadow only
+      ctx.fillStyle = "rgba(0,0,0,0)";
       ctx.fill();
       ctx.restore();
 
-      // ── COVER: compute source crop rectangle ────────────────────────────────
+      // ── COVER: fill box completely, face-first crop ──
+      // Landscape → fit height, center-crop width.
+      // Portrait/square → fit width, top-align (face is in the upper portion).
       const imgW  = pImg.naturalWidth;
       const imgH  = pImg.naturalHeight;
       const imgAR = imgW / imgH;
       const boxAR = fillW / fillH;
 
-      let sx: number, sy: number, sw: number, sh: number;
-
+      let dw: number, dh: number, dx: number, dy: number;
       if (imgAR > boxAR) {
-        // Landscape photo in a narrower/taller box → fit height, centre-crop width
-        sh = imgH;
-        sw = Math.round(imgH * boxAR);
-        sx = Math.round((imgW - sw) / 2);
-        sy = 0;
+        // Landscape photo — fill height, center-crop width
+        dh = fillH;
+        dw = Math.round(fillH * imgAR);
+        dx = fillX + Math.round((fillW - dw) / 2);
+        dy = fillY;
       } else {
-        // Portrait/square → fit width, centre-crop height
-        sw = imgW;
-        sh = Math.round(imgW / boxAR);
-        sx = 0;
-        sy = Math.max(0, Math.min(Math.round((imgH - sh) / 2), imgH - sh));
+        // Portrait/square photo — fill width, face-first (top) crop
+        dw = fillW;
+        dh = Math.round(fillW / imgAR);
+        dx = fillX;
+        dy = fillY;
       }
 
-      // ── Draw photo inside 90 % fill area (no expansion beyond detected zone) ─
       ctx.save();
       roundRect(ctx, fillX, fillY, fillW, fillH, r);
       ctx.clip();
-      ctx.drawImage(pImg, sx, sy, sw, sh, fillX, fillY, fillW, fillH);
+      ctx.drawImage(pImg, 0, 0, imgW, imgH, dx, dy, dw, dh);
       ctx.restore();
 
       // ── Subtle inner highlight stroke ───────────────────────────────────────
@@ -772,11 +924,11 @@ const TemplateCanvas = forwardRef<TemplateCanvasHandle, Props>(function Template
         // Load original photo directly — drawCard cover-fits it into the detected
         // photo zone, preserving full body: uniform, tie, badge, shoulders visible.
         const pImg = new Image();
-        pImg.onload  = () => drawCard(ctx, canvas, bgImg, pImg,  fields, values, photoBox, textColor, false, debug);
-        pImg.onerror = () => drawCard(ctx, canvas, bgImg, null,  fields, values, photoBox, textColor, false, debug);
+        pImg.onload  = () => drawCard(ctx, canvas, bgImg, pImg,  fields, values, photoBox, textColor, false, false, debug);
+        pImg.onerror = () => drawCard(ctx, canvas, bgImg, null,  fields, values, photoBox, textColor, false, false, debug);
         pImg.src = photoSrc;
       } else {
-        drawCard(ctx, canvas, bgImg, null, fields, values, photoBox, textColor, false, debug);
+        drawCard(ctx, canvas, bgImg, null, fields, values, photoBox, textColor, false, false, debug);
       }
     };
     bgImg.onerror = () => {};
@@ -834,6 +986,8 @@ export function renderCardToDataURL(
   textColor = "#111111",
   /** Photo-Replacement Mode — only swap the photo, lock everything else. */
   photoOnly = false,
+  /** Zone-Replacement Mode — skip Step 2 erase; inject values only (no label prefix). */
+  noErase   = false,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const canvas = document.createElement("canvas");
@@ -845,7 +999,7 @@ export function renderCardToDataURL(
     bgImg.onerror = () => reject(new Error("template load failed"));
     bgImg.onload = () => {
       const finish = (pImg: HTMLImageElement | null) => {
-        drawCard(ctx, canvas, bgImg, pImg, fields, values, photoBox, textColor, photoOnly);
+        drawCard(ctx, canvas, bgImg, pImg, fields, values, photoBox, textColor, photoOnly, noErase);
         resolve(canvas.toDataURL("image/png"));
       };
       if (photoSrc) {
