@@ -809,7 +809,7 @@ export default function AIBuilderPage() {
     if (step === "preview" && previewCards.length === 0 && matched.length > 0 && !previewLoading) {
       renderPreview();
     }
-  }, [step]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [step, previewCards.length]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Bulk generation — only records with a confirmed photo match (confidence ≥ 90%) ──
   const runGeneration = useCallback(async () => {
