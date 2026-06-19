@@ -36,7 +36,7 @@ export default function TopBar({ onMenuToggle }: TopBarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
 
   const pageName     = PAGE_NAMES[pathname]     || "Dashboard";
-  const pageSubtitle = PAGE_SUBTITLES[pathname] || "IDForge AI Platform";
+  const pageSubtitle = PAGE_SUBTITLES[pathname] || "Vinofyx Prints Platform";
 
   return (
     <header className="h-14 sm:h-16 border-b border-white/[0.06] bg-[#0a0d18]/80 backdrop-blur-xl flex items-center justify-between px-4 sm:px-6 shrink-0 gap-3">

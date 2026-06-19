@@ -96,7 +96,7 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
                 transition={{ duration:0.2 }}
                 className="font-bold text-white text-lg whitespace-nowrap flex-1"
               >
-                ID<span className="gradient-text">Forge</span>
+                Vinofyx<span className="gradient-text"> Prints</span>
               </motion.span>
             )}
           </AnimatePresence>
